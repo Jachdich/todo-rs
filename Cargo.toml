@@ -8,3 +8,5 @@ edition = "2018"
 
 [dependencies]
 json = "*"
+yaml-rust = "*"
+linked-hash-map = "*"
