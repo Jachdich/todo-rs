@@ -1,0 +1,23 @@
+---
+name: all
+entries:
+  - type: item
+    name: testitem
+    priority: 0
+    date: 0
+  - type: item
+    name: testitem2
+    priority: 0
+    date: 0
+  - type: list
+    name: test1
+---
+name: test1
+entries:
+  - type: item
+    name: testitemone
+    priority: 0
+    date: 0
+---
+name: test2
+entries: []

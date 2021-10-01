@@ -53,6 +53,25 @@ impl ListEntry {
             }
         }
     }
+
+    fn from_yaml(y: &Yaml) -> Self {
+        let ty = y["type"].as_str().unwrap();
+        match ty {
+            "item" => {
+                ListEntry::Item(ListItem {
+                    name: y["name"].as_str().unwrap().to_owned(),
+                    date: y["date"].as_i64().unwrap(),
+                    priority: y["priority"].as_i64().unwrap() as i32,
+                })
+            }
+
+            "list" => {
+                ListEntry::List(y["name"].as_str().unwrap().to_owned())
+            }
+
+            _ => panic!("Expected either 'item' or 'list', got '{}'")
+        }
+    }
 }
 
 struct TodoList {
@@ -103,7 +122,12 @@ impl TodoList {
     }
 
     fn from_yaml(val: &Yaml) -> Self {
-        let name = val["name"].as_str().to_owned();
+        let name = val["name"].as_str().unwrap().to_owned();
+        let mut entries: Vec<ListEntry> = Vec::new();
+        for y in val["entries"].as_vec().unwrap() {
+            entries.push(ListEntry::from_yaml(&y));
+        }
+        Self { name, items: entries }
     }
 
     fn print(&self, all: &Vec<TodoList>) {
@@ -164,10 +188,13 @@ fn load_yaml(fname: &str) -> std::io::Result<Vec<TodoList>> {
 fn save_yaml(fname: &str, lists: &Vec<TodoList>) -> std::io::Result<()> {
     let mut file = std::fs::File::create(fname)?;
     let mut out = String::new();
-    let mut emitter = YamlEmitter::new(&mut out);
     
     for list in lists {
-        emitter.dump(&list.to_yaml());
+        {
+            let mut emitter = YamlEmitter::new(&mut out);
+            emitter.dump(&list.to_yaml());
+        }
+        out.push('\n');
     }
 
     file.write_all(&out.into_bytes())?;
