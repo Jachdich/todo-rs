@@ -1,4 +1,3 @@
-use json;
 use yaml_rust::{Yaml, YamlLoader, YamlEmitter};
 use linked_hash_map::LinkedHashMap;
 use std::io::Read;
@@ -8,6 +7,7 @@ struct ListItem {
     name: String,
     date: i64,
     priority: i32,
+    done: bool,
 }
 
 enum ListEntry {
@@ -16,25 +16,6 @@ enum ListEntry {
 }
 
 impl ListEntry {
-    fn to_json(&self) -> json::JsonValue {
-        match self {
-            ListEntry::Item(item) => {
-                json::object!{
-                    type: "item",
-                    name: item.name.to_owned(),
-                    date: item.date,
-                    priority: item.priority
-                }
-            }
-            ListEntry::List(list) => {
-                json::object!{
-                    type: "list",
-                    name: list.to_owned(),
-                }
-            }
-        }
-    }
-    
     fn to_yaml(&self) -> Yaml {
         match self {
             ListEntry::Item(item) => {
@@ -43,6 +24,7 @@ impl ListEntry {
                 map.insert(Yaml::String("name".into()), Yaml::String(item.name.to_owned()));
                 map.insert(Yaml::String("priority".into()), Yaml::Integer(item.priority.into()));
                 map.insert(Yaml::String("date".into()),     Yaml::Integer(item.date.into()));
+                map.insert(Yaml::String("done".into()),     Yaml::Boolean(item.done));
                 Yaml::Hash(map)
             }
             ListEntry::List(list) => {
@@ -62,6 +44,7 @@ impl ListEntry {
                     name: y["name"].as_str().unwrap().to_owned(),
                     date: y["date"].as_i64().unwrap(),
                     priority: y["priority"].as_i64().unwrap() as i32,
+                    done: y["done"].as_bool().unwrap_or(false),
                 })
             }
 
@@ -69,7 +52,7 @@ impl ListEntry {
                 ListEntry::List(y["name"].as_str().unwrap().to_owned())
             }
 
-            _ => panic!("Expected either 'item' or 'list', got '{}'")
+            _ => panic!("Expected either 'item' or 'list', got '{}'", ty)
         }
     }
 }
@@ -82,31 +65,6 @@ struct TodoList {
 impl TodoList {
     fn new(name: String) -> Self {
         TodoList { name, items: Vec::new() }
-    }
-
-    fn from_json(val: &json::JsonValue) -> Self {
-        let mut items: Vec<ListEntry> = Vec::new();
-        for v in val["items"].members() {
-            if v["type"] == "item" {
-                items.push(ListEntry::Item(
-                    ListItem { name: v["name"].to_string(),
-                               date: v["date"].as_i64().unwrap(),
-                               priority: v["priority"].as_i32().unwrap() }
-                    ));
-            }
-        }
-        TodoList { name: val["name"].to_string(), items }
-    }
-
-    fn to_json(&self) -> json::JsonValue {
-        let mut out = json::array![];
-        for item in &self.items {
-            out.push(item.to_json());
-        }
-        json::object!{
-            name: self.name.to_owned(),
-            items: out
-        }
     }
 
     fn to_yaml(&self) -> Yaml {
@@ -130,45 +88,22 @@ impl TodoList {
         Self { name, items: entries }
     }
 
-    fn print(&self, all: &Vec<TodoList>) {
+    fn print(&self, all: &Vec<TodoList>, indent: usize) {
+        println!("{}{}:", " ".repeat(indent * 4), self.name);
+        let indent = indent + 1;
+        let indentstr = " ".repeat(indent * 4 - 1);
         for entry in &self.items {
             match entry {
                 ListEntry::List(list_name) => {
-                    get_list_by_name(all, list_name).unwrap().print(all);
+                    get_list_by_name(all, list_name).unwrap().print(all, indent);
                 }
 
                 ListEntry::Item(item) => {
-                    println!("{}: {} {} {}", self.name, item.name, item.date, item.priority);
+                    println!("{}{}{}\t{}\t{}", if item.done { "x" } else { " " }, indentstr, item.name, item.date, item.priority);
                 }
             }
         }
     }
-}
-
-fn load(fname: &str) -> std::io::Result<Vec<TodoList>> {
-    let mut file = std::fs::File::open(fname)?;
-    let mut contents = String::new();
-    file.read_to_string(&mut contents)?;
-    let json_parsed = json::parse(&contents).unwrap();
-    let mut lists: Vec<TodoList> = Vec::new();
-    for v in json_parsed["lists"].members() {
-        lists.push(TodoList::from_json(v));
-    }
-    Ok(lists)
-}
-
-fn save(fname: &str, lists: &Vec<TodoList>) -> std::io::Result<()> {
-    let mut file = std::fs::File::create(fname)?;
-    let mut listsjson = json::array![];
-    for list in lists {
-        listsjson.push(list.to_json());
-    }
-    let out = json::object!{
-        lists: listsjson
-    };
-
-    file.write_all(&out.dump().into_bytes())?;
-    Ok(())
 }
 
 fn load_yaml(fname: &str) -> std::io::Result<Vec<TodoList>> {
@@ -192,7 +127,7 @@ fn save_yaml(fname: &str, lists: &Vec<TodoList>) -> std::io::Result<()> {
     for list in lists {
         {
             let mut emitter = YamlEmitter::new(&mut out);
-            emitter.dump(&list.to_yaml());
+            emitter.dump(&list.to_yaml()).unwrap();
         }
         out.push('\n');
     }
@@ -202,7 +137,13 @@ fn save_yaml(fname: &str, lists: &Vec<TodoList>) -> std::io::Result<()> {
 }
 
 fn usage() {
-    println!("Usage: idk");
+    println!("Usage:\ttodo <action> ...");
+    println!("\tlists\t\t\t\tShow all the lists");
+    println!("\tlist <list name>\t\tShow the items in the specified list");
+    println!("\tnew <name>\t\t\tCreate a new list");
+    println!("\tadd <list> <name> [date, [priority]]\tAdd a new item to the specified list");
+    println!("\taddlist <dest> <src>\t\tAdd a reference of list <src> to list <dest>");
+    println!("\tdone <list> <item>\t\tMark the specified item as done");
 }
 
 fn get_list_by_name<'a>(lists: &'a Vec<TodoList>, name: &str) -> std::option::Option<&'a TodoList> {
@@ -230,7 +171,7 @@ todo addlist all
 todo new all*/
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    if args.len() < 3 {
+    if args.len() < 2 {
         usage();
         return;
     }
@@ -242,13 +183,15 @@ fn main() {
                 return;
             }
             if let Some(list) = get_list_by_name(&lists, &args[2]) {
-                list.print(&lists);
+                list.print(&lists, 0);
             } else {
                 println!("List does not exist!");
             }
         }
         "lists" => {
-
+            for i in &lists {
+                println!("{}", i.name);
+            }
         }
         "new" => {
             if args.len() != 3 {
@@ -279,7 +222,7 @@ fn main() {
     
                 list.items.push(
                     ListEntry::Item(
-                        ListItem { name: name.to_owned(), date, priority }
+                        ListItem { name: name.to_owned(), date, priority, done: false }
                     )
                 );
             } else {
@@ -307,9 +250,33 @@ fn main() {
                 println!("List \"{}\" does not exist!", &args[2]);
             }
         }
+        "done" => {
+            if args.len() == 4 {
+                let name = &args[2];
+                if let Some(list) = get_mut_list_by_name(&mut lists, name) {
+                    let itemname = &args[3];
+                    let mut found = false;
+                    for item in &mut list.items {
+                        if let ListEntry::Item(item) = item {
+                            if &item.name == itemname {
+                                item.done = !item.done;
+                                found = true;
+                            }
+                        }
+                    }
+                    if !found {
+                        println!("Item \"{}\" does not exist!", itemname);
+                    }
+                } else {
+                    println!("List \"{}\" does not exist!", name);
+                }
+            } else {
+                usage();
+            }
+        }
         _ => {
             println!("Unrecognised command");
         }
     }
-    save_yaml("test.yml", &lists);
+    save_yaml("test.yml", &lists).unwrap();
 }
