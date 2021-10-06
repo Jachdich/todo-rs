@@ -2,17 +2,10 @@
 name: all
 entries:
   - type: item
-    name: testitem
-    priority: 0
-    date: 0
-    done: false
-  - type: item
     name: testitem2
     priority: 0
     date: 0
-    done: true
-  - type: list
-    name: test1
+    done: false
 ---
 name: test1
 entries:
@@ -20,7 +13,7 @@ entries:
     name: testitemone
     priority: 0
     date: 0
-    done: true
+    done: false
 ---
 name: test2
 entries: []

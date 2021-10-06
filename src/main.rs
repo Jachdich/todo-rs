@@ -99,7 +99,7 @@ impl TodoList {
                 }
 
                 ListEntry::Item(item) => {
-                    println!("{}{}{}\t{}\t{}", if item.done { "x" } else { " " }, indentstr, item.name, item.date, item.priority);
+                    println!("{}{}{}\t{}\t{}", if item.done { "✓" } else { " " }, indentstr, item.name, item.date, item.priority);
                 }
             }
         }
@@ -144,24 +144,39 @@ fn usage() {
     println!("\tadd <list> <name> [date, [priority]]\tAdd a new item to the specified list");
     println!("\taddlist <dest> <src>\t\tAdd a reference of list <src> to list <dest>");
     println!("\tdone <list> <item>\t\tMark the specified item as done");
+    println!("\trm <list> <item>\t\tRemove <item> from <list>");
 }
 
 fn get_list_by_name<'a>(lists: &'a Vec<TodoList>, name: &str) -> std::option::Option<&'a TodoList> {
+    let mut item: std::option::Option<&'a TodoList> = None;
     for i in lists {
         if i.name == name {
             return Some(i);
         }
+        if i.name.starts_with(name) {
+            if let Some(_) = item {
+                return None;
+            }
+            item = Some(i);
+        }
     }
-    None
+    item
 }
 
 fn get_mut_list_by_name<'a>(lists: &'a mut Vec<TodoList>, name: &str) -> std::option::Option<&'a mut TodoList> {
+    let mut item: std::option::Option<&'a mut TodoList> = None;
     for i in lists {
         if i.name == name {
             return Some(i);
         }
+        if i.name.starts_with(name) {
+            if let Some(_) = item {
+                return None;
+            }
+            item = Some(i);
+        }
     }
-    None
+    item
 }
 
 
@@ -177,7 +192,7 @@ fn main() {
     }
     let mut lists = load_yaml("test.yml").unwrap();
     match args[1].as_str() {
-        "list" => {
+        "list" | "l" => {
             if args.len() != 3 {
                 usage();
                 return;
@@ -188,20 +203,19 @@ fn main() {
                 println!("List does not exist!");
             }
         }
-        "lists" => {
+        "lists" | "ls" => {
             for i in &lists {
                 println!("{}", i.name);
             }
         }
-        "new" => {
+        "new" | "n" => {
             if args.len() != 3 {
                 usage();
                 return;
             }
             lists.push(TodoList::new(args[2].to_owned()));
-            println!("Created list {}", &args[2]);
         }
-        "add" => {
+        "add" | "a" => {
             if args.len() <= 3 { 
                 usage();
                 return;
@@ -230,7 +244,7 @@ fn main() {
             }
         }
 
-        "addlist" => {
+        "addlist" | "al" => {
             if args.len() <= 3 {
                 usage();
                 return;
@@ -244,13 +258,12 @@ fn main() {
             if let Some(list) = get_mut_list_by_name(&mut lists, &args[2]) {
                 if lname != "" {
                     list.items.push(ListEntry::List(lname));
-                    println!("List \"{}\" added successfully", &args[3]);
                 }
             } else {
                 println!("List \"{}\" does not exist!", &args[2]);
             }
         }
-        "done" => {
+        "done" | "d" => {
             if args.len() == 4 {
                 let name = &args[2];
                 if let Some(list) = get_mut_list_by_name(&mut lists, name) {
@@ -266,6 +279,55 @@ fn main() {
                     }
                     if !found {
                         println!("Item \"{}\" does not exist!", itemname);
+                    }
+                } else {
+                    println!("List \"{}\" does not exist!", name);
+                }
+            } else {
+                usage();
+            }
+        }
+        "rm" | "remove" | "r" => {
+            if args.len() == 4 {
+                let name = &args[2];
+                if let Some(list) = get_mut_list_by_name(&mut lists, name) {
+                    let itemname = &args[3];
+                    let mut idx: usize = usize::MAX;
+                    let mut cidx: usize = 0;
+                    for item in &mut list.items {
+                        let citemname = match &item {
+                            ListEntry::List(l) => &l,
+                            ListEntry::Item(i) => &i.name,
+                        };
+                        if citemname == itemname {
+                            idx = cidx;
+                        }
+
+                        cidx += 1;
+                    }
+
+                    if idx == usize::MAX {
+                        cidx = 0;
+                        for item in &mut list.items {
+                            let citemname = match &item {
+                                ListEntry::List(l) => &l,
+                                ListEntry::Item(i) => &i.name,
+                            };
+                            if citemname.starts_with(itemname) {
+                                if idx == usize::MAX {
+                                    idx = cidx;
+                                } else {
+                                    println!("Item \"{}\" is not specific enough to match a single item", itemname);
+                                    return;
+                                }
+                            }
+                            cidx += 1;
+                        }
+                    }
+                    if idx == usize::MAX {
+                        println!("Item \"{}\" does not exist!", itemname);
+                    } else {
+                        list.items.remove(idx);
                     }
                 } else {
                     println!("List \"{}\" does not exist!", name);
