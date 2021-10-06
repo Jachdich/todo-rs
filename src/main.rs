@@ -2,6 +2,7 @@ use yaml_rust::{Yaml, YamlLoader, YamlEmitter};
 use linked_hash_map::LinkedHashMap;
 use std::io::Read;
 use std::io::Write;
+use dirs;
 
 struct ListItem {
     name: String,
@@ -190,6 +191,7 @@ fn main() {
         usage();
         return;
     }
+    let mut config_dir = dirs::config_dir();
     let mut lists = load_yaml("test.yml").unwrap();
     match args[1].as_str() {
         "list" | "l" => {
