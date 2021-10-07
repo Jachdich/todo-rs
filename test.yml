@@ -1,19 +1,138 @@
 ---
 name: all
 entries:
+  - type: list
+    name: today
+  - type: list
+    name: other
+---
+name: piano
+entries:
+  - type: list
+    name: scales
   - type: item
-    name: testitem2
+    name: presto end of first page
     priority: 0
     date: 0
     done: false
+  - type: list
+    name: _arctic night
 ---
-name: test1
+name: clarinet
 entries:
   - type: item
-    name: testitemone
+    name: "grade 5 scales, like 3 of them"
+    priority: 0
+    date: 0
+    done: false
+  - type: item
+    name: troubadour
+    priority: 0
+    date: 0
+    done: true
+---
+name: today
+entries:
+  - type: list
+    name: piano
+  - type: list
+    name: clarinet
+  - type: item
+    name: csgo plugin
     priority: 0
     date: 0
     done: false
 ---
-name: test2
-entries: []
+name: other
+entries:
+  - type: item
+    name: test the teleport plugin
+    priority: 0
+    date: 0
+    done: false
+  - type: item
+    name: maths revision
+    priority: 0
+    date: 0
+    done: false
+  - type: item
+    name: write the letter
+    priority: 0
+    date: 0
+    done: false
+  - type: item
+    name: print pictures
+    priority: 0
+    date: 0
+    done: false
+  - type: item
+    name: planet game comments video
+    priority: 0
+    date: 0
+    done: false
+  - type: item
+    name: planet game devlog?
+    priority: 0
+    date: 0
+    done: false
+  - type: item
+    name: shitposts lol
+    priority: 0
+    date: 0
+    done: false
+---
+name: scales
+entries:
+  - type: item
+    name: major
+    priority: 0
+    date: 0
+    done: false
+  - type: item
+    name: minor
+    priority: 0
+    date: 0
+    done: false
+  - type: item
+    name: sticcato
+    priority: 0
+    date: 0
+    done: false
+  - type: item
+    name: contrary motion
+    priority: 0
+    date: 0
+    done: false
+---
+name: _arctic night
+entries:
+  - type: item
+    name: 41-44
+    priority: 0
+    date: 0
+    done: false
+  - type: item
+    name: 45-47
+    priority: 0
+    date: 0
+    done: false
+  - type: item
+    name: 48-51
+    priority: 0
+    date: 0
+    done: false
+  - type: item
+    name: 52-54
+    priority: 0
+    date: 0
+    done: false
+  - type: item
+    name: 55-58
+    priority: 0
+    date: 0
+    done: false
+  - type: item
+    name: 59-61
+    priority: 0
+    date: 0
+    done: false

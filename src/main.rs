@@ -89,21 +89,36 @@ impl TodoList {
         Self { name, items: entries }
     }
 
-    fn print(&self, all: &Vec<TodoList>, indent: usize) {
+    fn print(&self, all: &Vec<TodoList>, indent: usize, maxsize: usize) {
         println!("{}{}:", " ".repeat(indent * 4), self.name);
         let indent = indent + 1;
         let indentstr = " ".repeat(indent * 4 - 1);
         for entry in &self.items {
             match entry {
                 ListEntry::List(list_name) => {
-                    get_list_by_name(all, list_name).unwrap().print(all, indent);
+                    get_list_by_name(all, list_name).unwrap().print(all, indent, maxsize);
                 }
-
                 ListEntry::Item(item) => {
-                    println!("{}{}{}\t{}\t{}", if item.done { "✓" } else { " " }, indentstr, item.name, item.date, item.priority);
+                    let tabs = " ".repeat(maxsize - indentstr.len() - item.name.len());
+                    println!("{}{}{}{}\t{}\t{}", if item.done { "✓" } else { " " }, indentstr, item.name, tabs, item.date, item.priority);
                 }
             }
         }
+    }
+    fn get_max_size(&self, all: &Vec<TodoList>, indent: usize) -> usize {
+        let mut max = indent * 4 + self.name.len() + 1;
+        let indent = indent + 1;
+        for entry in &self.items {
+            match entry {
+                ListEntry::List(list_name) => {
+                    max = std::cmp::max(max, get_list_by_name(all, list_name).unwrap().get_max_size(all, indent));
+                }
+                ListEntry::Item(item) => {
+                    max = std::cmp::max(max, indent * 4 + item.name.len())
+                }
+            }
+        }
+        max
     }
 }
 
@@ -146,6 +161,7 @@ fn usage() {
     println!("\taddlist <dest> <src>\t\tAdd a reference of list <src> to list <dest>");
     println!("\tdone <list> <item>\t\tMark the specified item as done");
     println!("\trm <list> <item>\t\tRemove <item> from <list>");
+    println!("\tmv <list> <item> <list>\tMove an <item> from <list> to another <list>");
 }
 
 fn get_list_by_name<'a>(lists: &'a Vec<TodoList>, name: &str) -> std::option::Option<&'a TodoList> {
@@ -180,6 +196,41 @@ fn get_mut_list_by_name<'a>(lists: &'a mut Vec<TodoList>, name: &str) -> std::op
     item
 }
 
+fn get_index_by_item(list: &TodoList, itemname: &str) -> usize {
+    let mut idx: usize = usize::MAX;
+    let mut cidx: usize = 0;
+    for item in &list.items {
+        let citemname = match &item {
+            ListEntry::List(l) => &l,
+            ListEntry::Item(i) => &i.name,
+        };
+        if citemname == itemname {
+            idx = cidx;
+        }
+
+        cidx += 1;
+    }
+
+    if idx == usize::MAX {
+        cidx = 0;
+        for item in &list.items {
+            let citemname = match &item {
+                ListEntry::List(l) => &l,
+                ListEntry::Item(i) => &i.name,
+            };
+            if citemname.starts_with(itemname) {
+                if idx == usize::MAX {
+                    idx = cidx;
+                } else {
+                    return usize::MAX - 1;
+                }
+            }
+            cidx += 1;
+        }
+    }
+    idx
+}
+
 
 /*todo list all
 todo add all "test item"
@@ -200,7 +251,8 @@ fn main() {
                 return;
             }
             if let Some(list) = get_list_by_name(&lists, &args[2]) {
-                list.print(&lists, 0);
+                let max = list.get_max_size(&lists, 0);
+                list.print(&lists, 0, max);
             } else {
                 println!("List does not exist!");
             }
@@ -270,17 +322,17 @@ fn main() {
                 let name = &args[2];
                 if let Some(list) = get_mut_list_by_name(&mut lists, name) {
                     let itemname = &args[3];
-                    let mut found = false;
-                    for item in &mut list.items {
-                        if let ListEntry::Item(item) = item {
-                            if &item.name == itemname {
-                                item.done = !item.done;
-                                found = true;
-                            }
-                        }
-                    }
-                    if !found {
+                    let idx = get_index_by_item(list, itemname);
+                    if idx == usize::MAX {
                         println!("Item \"{}\" does not exist!", itemname);
+                    } else if idx == usize::MAX - 1 {
+                        println!("Item \"{}\" is not specific enough to match a single item", itemname);
+                    } else {
+                        if let ListEntry::Item(i) = &mut list.items[idx] {
+                            i.done = !i.done;
+                        } else {
+                            println!("You can't done a list silly (todo add this feature cos its cool)");
+                        }
                     }
                 } else {
                     println!("List \"{}\" does not exist!", name);
@@ -294,45 +346,49 @@ fn main() {
                 let name = &args[2];
                 if let Some(list) = get_mut_list_by_name(&mut lists, name) {
                     let itemname = &args[3];
-                    let mut idx: usize = usize::MAX;
-                    let mut cidx: usize = 0;
-                    for item in &mut list.items {
-                        let citemname = match &item {
-                            ListEntry::List(l) => &l,
-                            ListEntry::Item(i) => &i.name,
-                        };
-                        if citemname == itemname {
-                            idx = cidx;
-                        }
-
-                        cidx += 1;
-                    }
-
-                    if idx == usize::MAX {
-                        cidx = 0;
-                        for item in &mut list.items {
-                            let citemname = match &item {
-                                ListEntry::List(l) => &l,
-                                ListEntry::Item(i) => &i.name,
-                            };
-                            if citemname.starts_with(itemname) {
-                                if idx == usize::MAX {
-                                    idx = cidx;
-                                } else {
-                                    println!("Item \"{}\" is not specific enough to match a single item", itemname);
-                                    return;
-                                }
-                            }
-                            cidx += 1;
-                        }
-                    }
+                    let idx = get_index_by_item(list, itemname);
                     if idx == usize::MAX {
                         println!("Item \"{}\" does not exist!", itemname);
+                    } else if idx == usize::MAX - 1 {
+                        println!("Item \"{}\" is not specific enough to match a single item", itemname);
                     } else {
                         list.items.remove(idx);
                     }
                 } else {
                     println!("List \"{}\" does not exist!", name);
+                }
+            } else {
+                usage();
+            }
+        }
+
+        "move" | "mv" | "m" => {
+            if args.len() == 5 {
+                if let Some(list) = get_list_by_name(&lists, &args[4]) {
+                    //what
+                } else {
+                    println!("List \"{}\" does not exist!", &args[4]);
+                }
+                let item = if let Some(list) = get_mut_list_by_name(&mut lists, &args[2]) {
+                    let itemname = &args[3];
+                    let idx = get_index_by_item(list, itemname);
+                    if idx == usize::MAX {
+                        println!("Item \"{}\" does not exist!", itemname);
+                        None
+                    } else if idx == usize::MAX - 1 {
+                        println!("Item \"{}\" is not specific enough to match a single item", itemname);
+                        None
+                    } else {
+                        Some(list.items.remove(idx))
+                    }
+                } else {
+                    println!("List \"{}\" does not exist!", &args[2]);
+                    None
+                };
+
+                if let Some(item) = item {
+                    let l = get_mut_list_by_name(&mut lists, &args[4]).unwrap(); //already checked before
+                    l.items.push(item);
                 }
             } else {
                 usage();
