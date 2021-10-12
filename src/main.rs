@@ -9,6 +9,8 @@ struct ListItem {
     date: i64,
     priority: i32,
     done: bool,
+    repeat_every: i64,
+    repeat_next: i64,
 }
 
 enum ListEntry {
@@ -23,9 +25,11 @@ impl ListEntry {
                 let mut map: LinkedHashMap<Yaml, Yaml> = LinkedHashMap::new();
                 map.insert(Yaml::String("type".into()), Yaml::String("item".into()));
                 map.insert(Yaml::String("name".into()), Yaml::String(item.name.to_owned()));
-                map.insert(Yaml::String("priority".into()), Yaml::Integer(item.priority.into()));
-                map.insert(Yaml::String("date".into()),     Yaml::Integer(item.date.into()));
                 map.insert(Yaml::String("done".into()),     Yaml::Boolean(item.done));
+                if item.priority     != 0 { map.insert(Yaml::String("priority".into()),    Yaml::Integer(item.priority.into())); }
+                if item.date         != 0 { map.insert(Yaml::String("date".into()),        Yaml::Integer(item.date.into())); }
+                if item.repeat_every != 0 { map.insert(Yaml::String("repeat_every".into()),Yaml::Integer(item.repeat_every.into())); }
+                if item.repeat_next  != 0 { map.insert(Yaml::String("repeat_next".into()), Yaml::Integer(item.repeat_next.into())); }
                 Yaml::Hash(map)
             }
             ListEntry::List(list) => {
@@ -43,9 +47,11 @@ impl ListEntry {
             "item" => {
                 ListEntry::Item(ListItem {
                     name: y["name"].as_str().unwrap().to_owned(),
-                    date: y["date"].as_i64().unwrap(),
-                    priority: y["priority"].as_i64().unwrap() as i32,
+                    date: y["date"].as_i64().unwrap_or(0),
+                    priority: y["priority"].as_i64().unwrap_or(0) as i32,
                     done: y["done"].as_bool().unwrap_or(false),
+                    repeat_every: y["repeat_every"].as_i64().unwrap_or(0),
+                    repeat_next: y["repeat_next"].as_i64().unwrap_or(0),
                 })
             }
 
@@ -161,7 +167,9 @@ fn usage() {
     println!("\taddlist <dest> <src>\t\tAdd a reference of list <src> to list <dest>");
     println!("\tdone <list> <item>\t\tMark the specified item as done");
     println!("\trm <list> <item>\t\tRemove <item> from <list>");
-    println!("\tmv <list> <item> <list>\tMove an <item> from <list> to another <list>");
+    println!("\tmv <list> <item> <list>\t\tMove an <item> from <list> to another <list>");
+    println!("\trepeat <list> <item> <time>\tSet an item to repeat (mark as un-done) every <time>");
+    println!("\tautorm <list>\t\t\tRemove all items in <list> that are marked as done");
 }
 
 fn get_list_by_name<'a>(lists: &'a Vec<TodoList>, name: &str) -> std::option::Option<&'a TodoList> {
@@ -290,7 +298,7 @@ fn main() {
     
                 list.items.push(
                     ListEntry::Item(
-                        ListItem { name: name.to_owned(), date, priority, done: false }
+                        ListItem { name: name.to_owned(), date, priority, done: false, repeat_every: 0, repeat_next: 0 }
                     )
                 );
             } else {
