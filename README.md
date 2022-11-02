@@ -24,6 +24,7 @@ Usage:	todo <action> ...
 # TODO
 
 A somewhat ironic section to have, but there are multiple issues. In fact, here's a screenshot of my todo list for my todo list on my todo list (if you get my drift)
+
 ![image](https://user-images.githubusercontent.com/42205980/199619349-6b686469-54d7-4574-8fc7-53593d2436e2.png)
 
 There are many bugs and it's kind of unusable right now but I will finish it someday...
