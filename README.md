@@ -20,3 +20,10 @@ Usage:	todo <action> ...
 # Demo
 
 ![gh_todo_demo](https://user-images.githubusercontent.com/42205980/199619052-2e45f75a-dfd7-49d3-89ed-0dc8012916b1.png)
+
+# TODO
+
+A somewhat ironic section to have, but there are multiple issues. In fact, here's a screenshot of my todo list for my todo list on my todo list (if you get my drift)
+![image](https://user-images.githubusercontent.com/42205980/199619349-6b686469-54d7-4574-8fc7-53593d2436e2.png)
+
+There are many bugs and it's kind of unusable right now but I will finish it someday...
