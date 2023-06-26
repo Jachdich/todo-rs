@@ -106,7 +106,7 @@ impl TodoList {
                 }
                 ListEntry::Item(item) => {
                     let tabs = " ".repeat(maxsize - indentstr.len() - item.name.len());
-                    println!("{}{}{}{}\t{}\t{}", if item.done { "✓" } else { " " }, indentstr, item.name, tabs, item.date, item.priority);
+                    println!("{}{}{}", if item.done { "✓" } else { " " }, indentstr, item.name);
                 }
             }
         }
@@ -166,6 +166,7 @@ fn usage() {
     println!("\tadd <list> <name> [date, [priority]]\tAdd a new item to the specified list");
     println!("\taddlist <dest> <src>\t\tAdd a reference of list <src> to list <dest>");
     println!("\tdone <list> <item>\t\tMark the specified item as done");
+    println!("\tdoneall <list>\t\t\tMark all items in list as not done");
     println!("\trm <list> <item>\t\tRemove <item> from <list>");
     println!("\tmv <list> <item> <list>\t\tMove an <item> from <list> to another <list>");
     println!("\trepeat <list> <item> <time>\tSet an item to repeat (mark as un-done) every <time>");
@@ -254,10 +255,11 @@ fn main() {
     let mut lists = load_yaml("test.yml").unwrap();
     match args[1].as_str() {
         "list" | "l" => {
-            if args.len() != 3 {
+            if args.len() < 3 || args.len() > 4 {
                 usage();
                 return;
             }
+            
             if let Some(list) = get_list_by_name(&lists, &args[2]) {
                 let max = list.get_max_size(&lists, 0);
                 list.print(&lists, 0, max);
@@ -271,11 +273,12 @@ fn main() {
             }
         }
         "new" | "n" => {
-            if args.len() != 3 {
+            if args.len() < 3 {
                 usage();
                 return;
             }
-            lists.push(TodoList::new(args[2].to_owned()));
+            let item = args[2..].join(" ");
+            lists.push(TodoList::new(item));
         }
         "add" | "a" => {
             if args.len() <= 3 { 
@@ -283,22 +286,11 @@ fn main() {
                 return;
             }
             if let Some(list) = get_mut_list_by_name(&mut lists, &args[2]) {
-                let name = &args[3];
-                let date = if args.len() >= 5 {
-                    args[4].parse::<i64>().unwrap()
-                } else {
-                    0
-                };
-
-                let priority = if args.len() >= 6 {
-                    args[5].parse::<i32>().unwrap()
-                } else {
-                    0
-                };
-    
+                let name = &args[3..].join(" ");
+                
                 list.items.push(
                     ListEntry::Item(
-                        ListItem { name: name.to_owned(), date, priority, done: false, repeat_every: 0, repeat_next: 0 }
+                        ListItem { name: name.to_owned(), date: 0, priority: 0, done: false, repeat_every: 0, repeat_next: 0 }
                     )
                 );
             } else {
@@ -340,6 +332,22 @@ fn main() {
                             i.done = !i.done;
                         } else {
                             println!("You can't done a list silly (todo add this feature cos its cool)");
+                        }
+                    }
+                } else {
+                    println!("List \"{}\" does not exist!", name);
+                }
+            } else {
+                usage();
+            }
+        }
+        "doneall" | "da" => {
+            if args.len() == 3 {
+                let name = &args[2];
+                if let Some(list) = get_mut_list_by_name(&mut lists, name) {
+                    for item in list.items.iter_mut() {
+                        if let ListEntry::Item(item) = item {
+                            item.done = false;
                         }
                     }
                 } else {
