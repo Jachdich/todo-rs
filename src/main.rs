@@ -105,8 +105,12 @@ impl TodoList {
                     get_list_by_name(all, list_name).unwrap().print(all, indent, maxsize);
                 }
                 ListEntry::Item(item) => {
-                    let tabs = " ".repeat(maxsize - indentstr.len() - item.name.len());
-                    println!("{}{}{}{}\t{}\t{}", if item.done { "✓" } else { " " }, indentstr, item.name, tabs, item.date, item.priority);
+                    if item.date != 0 || item.priority != 0 {
+                        let tabs = " ".repeat(maxsize - indentstr.len() - item.name.len());
+                        println!("{}{}{}{}\t{}\t{}", if item.done { "✓" } else { " " }, indentstr, item.name, tabs, item.date, item.priority);
+                    } else {
+                        println!("{}{}{}", if item.done { "✓" } else { " " }, indentstr, item.name);
+                    }
                 }
             }
         }
