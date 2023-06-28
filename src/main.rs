@@ -1,4 +1,7 @@
+mod parser;
+
 use chrono::Datelike;
+use chrono::{DateTime, Local};
 use dirs;
 use linked_hash_map::LinkedHashMap;
 use std::io::Read;
@@ -185,7 +188,7 @@ impl TodoList {
             .iter()
             .filter(|item| match item {
                 ListEntry::Item(item) => predicate(&item),
-                ListEntry::List(_) => false,
+                ListEntry::List(_) => true,
             })
             .collect::<Vec<&ListEntry>>();
 
@@ -385,6 +388,8 @@ fn main() {
         .expect("Unable to create the config directory. Do you have the right permissions?");
     list_file.push("todo.yml");
     let mut lists = load_yaml(list_file.as_path()).unwrap_or(Vec::new());
+
+    let mut modified = false;
     match args[1].as_str() {
         "list" | "l" => {
             if args.len() < 3 || args.len() > 4 {
@@ -410,6 +415,7 @@ fn main() {
             }
             let list_name = args[2..].join(" ");
             lists.push(TodoList::new(list_name));
+            modified = true;
         }
         "rmlist" | "rl" => {
             if args.len() < 3 {
@@ -417,10 +423,14 @@ fn main() {
                 return;
             }
             let item = args[2..].join(" ");
-            if get_list_by_name(&lists, &item).is_none() {
+            let name = if let Some(list) = get_list_by_name(&lists, &item) {
+                list.name.to_owned()
+            } else {
                 println!("List \"{}\" does not exist!", &item);
-            }
-            lists.retain(|l| l.name != item);
+                return;
+            };
+            lists.retain(|l| l.name != name);
+            modified = true;
         }
         "add" | "a" => {
             if args.len() <= 3 {
@@ -447,6 +457,7 @@ fn main() {
                     repeat_every: 0,
                     repeat_next: 0,
                 }));
+                modified = true;
             } else {
                 println!("List \"{}\" does not exist!", &args[2]);
             }
@@ -466,6 +477,7 @@ fn main() {
             if let Some(list) = get_mut_list_by_name(&mut lists, &args[2]) {
                 if lname != "" {
                     list.items.push(ListEntry::List(lname));
+                    modified = true;
                 }
             } else {
                 println!("List \"{}\" does not exist!", &args[2]);
@@ -487,6 +499,7 @@ fn main() {
                     } else {
                         if let ListEntry::Item(i) = &mut list.items[idx] {
                             i.done = !i.done;
+                            modified = true;
                         } else {
                             println!(
                                 "You can't done a list silly (todo add this feature cos its cool)"
@@ -510,6 +523,7 @@ fn main() {
                             item.done = target_state;
                         }
                     }
+                    modified = true;
                 } else {
                     println!("List \"{}\" does not exist!", name);
                 }
@@ -532,6 +546,7 @@ fn main() {
                         );
                     } else {
                         list.items.remove(idx);
+                        modified = true;
                     }
                 } else {
                     println!("List \"{}\" does not exist!", name);
@@ -569,6 +584,7 @@ fn main() {
                 if let Some(item) = item {
                     let l = get_mut_list_by_name(&mut lists, &args[4]).unwrap(); //already checked before
                     l.items.push(item);
+                    modified = true;
                 }
             } else {
                 usage();
@@ -586,21 +602,56 @@ fn main() {
                     ListEntry::Item(item) => !item.done,
                     _ => true,
                 });
+                modified = true;
             } else {
                 println!("List \"{}\" does not exist!", &list_name);
             }
         }
-        "today" | "t" => {
+        "today" | "t" | "week" | "w" | "overdue" | "od" => {
             if args.len() < 3 {
                 usage();
                 return;
             }
-            use chrono::{DateTime, Local};
-            let list_name = args[2..].join(" ");
+            use chrono::Duration;
+            // find out the minimum and maximum allowed difference between the deadline date and today
+            let (min_diff, max_diff, description) = match args[1].as_str() {
+                "today" | "t" => (Duration::days(0), Duration::days(1), "today"),
+                "week" | "w" => (Duration::days(1), Duration::days(7), "this week"),
+                "overdue" | "od" => (
+                    Duration::days(-365 * 1000), //1000 years ought to be enough
+                    Duration::days(0),
+                    "overdue",
+                ),
+                _ => unreachable!(),
+            };
+
+            let (list_name, short) = if args[args.len() - 1] == "--short" {
+                (args[2..args.len() - 1].join(" "), true)
+            } else {
+                (args[2..].join(" "), false)
+            };
+
             if let Some(list) = get_list_by_name(&lists, &list_name) {
                 let now: DateTime<Local> = Local::now();
-                let date = now.date_naive();
-                list.print_without_date(&lists, |list| !list.done && list.date == date);
+                let today = now.date_naive();
+                let mut filter = |item: &&ListItem| {
+                    !item.done && item.date - today < max_diff && item.date - today >= min_diff
+                };
+                if short {
+                    let num = list.num_valid_entries(&lists, &mut filter);
+                    if num == 0 {
+                        // don't bother printing if there's none. maybe should make this configurable.
+                        return;
+                    }
+                    println!(
+                        "You have {} deadline{} {}",
+                        num,
+                        if num == 1 { "" } else { "s" },
+                        description
+                    );
+                } else {
+                    list.print_without_date(&lists, filter);
+                }
             } else {
                 println!("List \"{}\" does not exist!", &list_name);
             }
@@ -609,6 +660,7 @@ fn main() {
             println!("Unrecognised command");
         }
     }
-
-    save_yaml(list_file.as_path(), &lists).unwrap();
+    if modified {
+        save_yaml(list_file.as_path(), &lists).unwrap();
+    }
 }
