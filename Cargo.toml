@@ -1,9 +1,15 @@
 [package]
-name = "todo"
+name = "yatdl"
 version = "0.1.0"
 authors = ["Jachdich <jamesedkitching@gmail.com>"]
 edition = "2018"
-
+license = "GPL-2.0-or-later"
+description = "Yet Another To-Do List program, supporting a tree-like structure of lists within lists"
+homepage = "https://github.com/Jachdich/todo-rs"
+repository = "https://github.com/Jachdich/todo-rs"
+readme = "README.md"
+keywords = ["todo", "cli"]
+categories = ["command-line-utilities"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
@@ -11,3 +17,4 @@ yaml-rust = "*"
 linked-hash-map = "*"
 dirs = "*"
 chrono = "0.4.26"
+
