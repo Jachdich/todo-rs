@@ -1,5 +1,8 @@
-list_name:
+list name:
 	- item
-	- "item" 10/20/30
-	= list
-    + done item
+	- @10/10/2023 item
+	= another list
+	+ done item
+another list:
+	- yet another item
+	+ this one being done too
