@@ -296,11 +296,19 @@ fn usage() -> String {
     "\tuda undoneall <list>             Mark all items in list as not done\n" +
     "\trm  remove <list> <item>         Remove <item> from <list>\n" +
     "\tmv  move <list> <item> <list>    Move an <item> from <list> to another <list>\n" +
+    "\trn  rename <list> <old> <new>    Rename an item in <list> from <old> to <new>\n" +
+    "\trl  renamelist <old> <new>       Rename the list <old> to <new>\n" +
     // println!("\tr   repeat <list> <item> <time>  Set an item to repeat (mark as un-done) every <time>");
     "\tar  autorm <list>                Remove all items in <list> that are marked as done\n" +
     "\tt   today <list> [--short]       List all tasks with a deadline of today.\n                                         If --short is passed, return only the number of tasks, do not list them.\n" +
     "\tw   week <list> [--short]        List all tasks with a deadline of within the next 7 days\n" +
-    "\tod  overdue <list> [--short]     List all non-completed tasks with a deadline in the past\n"
+    "\tod  overdue <list> [--short]     List all non-completed tasks with a deadline in the past\n\n" +
+    "When specifying lists and items, only the first few characters of their names are needed, as long a they\n" +
+    "uniquely identify a single list or item. For example in a list containing both 'orange' and 'organic',\n" +
+    "'or' would not work but 'ora' would be interpreted as 'orange'. In a list containing 'or' and 'orange',\n" + 
+    "'or' would match 'or' because it's an exact match. 'ora' would be necessary to match 'orange'.\n\n" +
+    "The last argument to a command need not be quoted as additional arguments are automatically concatinated\n" +
+    "with a space. For example, `todo add list this item has multiple words` is valid."
 }
 
 fn get_list_by_name<'a>(lists: &'a [TodoList], name: &str) -> Result<&'a TodoList, String> {
@@ -471,6 +479,23 @@ fn cmd_remove(lists: &mut Vec<TodoList>, list_name: &str, item_name: &str) -> Cm
     Ok(("".to_string(), true))
 }
 
+fn cmd_rename(lists: &mut Vec<TodoList>, list_name: &str, old: &str, new: &str) -> CmdResult {
+    let list = get_mut_list_by_name(lists, list_name)?;
+    let idx = get_index_by_name(&list, old)?;
+    if let ListEntry::Item(i) = &mut list.items[idx] {
+        i.name = new.to_owned();
+        Ok(("".to_string(), true))
+    } else {
+        Err("Renaming a list entry doesn't really make sense".to_string())
+    }
+}
+
+fn cmd_rnlist(lists: &mut Vec<TodoList>, old: &str, new: &str) -> CmdResult {
+    let list = get_mut_list_by_name(lists, old)?;
+    list.name = new.to_owned();
+    Ok(("".to_string(), true))
+}
+
 fn cmd_move(
     lists: &mut Vec<TodoList>,
     src_list_name: &str,
@@ -484,6 +509,7 @@ fn cmd_move(
     let src_list = get_mut_list_by_name(lists, src_list_name)?;
     let item_idx = get_index_by_name(src_list, item_name)?;
     let item = src_list.items.remove(item_idx);
+
     let dest_list = get_mut_list_by_name(lists, dest_list_name).unwrap(); // already checked
     dest_list.items.push(item);
     Ok(("".to_string(), true))
@@ -572,8 +598,10 @@ fn main() {
         "addlist" | "al"      if nargs == 2 => cmd_addlist(&mut lists, &args[2], &args[3]),
         "done"    | "d"       if nargs >= 2 => cmd_done(&mut lists, &args[2], &args[3..].join(" ")),
         "autorm"  | "ar"      if nargs >= 1 => cmd_autorm(&mut lists, &args[2..].join(" ")),
+        "rename"  | "rn"      if nargs >= 3 => cmd_rename(&mut lists, &args[2], &args[3], &args[4..].join(" ")),
+        "renamelist" | "rl"   if nargs >= 2 => cmd_rnlist(&mut lists, &args[2], &args[3..].join(" ")),
         "rm" | "remove" | "r" if nargs >= 2 => cmd_remove(&mut lists, &args[2], &args[3..].join(" ")),
-        "move" | "mv" | "m"   if nargs >= 5 => cmd_move(&mut lists, &args[2], &args[4..].join(" "), &args[3]),
+        "move" | "mv" | "m"   if nargs >= 5 => cmd_move(&mut lists, &args[2], &args[4], &args[3]),
         "today" | "t"
         | "week" | "w"
         | "overdue" | "od"    if nargs >= 1 => cmd_timeperiods(&lists, &args[2..], &args[1]),
