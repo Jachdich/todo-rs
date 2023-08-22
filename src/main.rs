@@ -561,7 +561,7 @@ fn cmd_timeperiods(lists: &[TodoList], args: &[String], op: &str) -> CmdResult {
         }
         Ok((
             format!(
-                "You have {} deadline{} {}",
+                "You have {} deadline{} {}\n",
                 num,
                 if num == 1 { "" } else { "s" },
                 description
