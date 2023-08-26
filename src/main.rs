@@ -295,7 +295,8 @@ fn usage() -> String {
     "\tda  doneall <list>               Mark all items in list as done\n" +
     "\tuda undoneall <list>             Mark all items in list as not done\n" +
     "\trm  remove <list> <item>         Remove <item> from <list>\n" +
-    "\tmv  move <list> <item> <list>    Move an <item> from <list> to another <list>\n" +
+    "\tmv  move <source> <item> <dest>  Move an <item> from the list <source> to <dest>\n" +
+    "\tmva moveall <source> <dest>      Move every item from <source> into <dest>. Does not move sublist of source into itself\n" +
     "\trn  rename <list> <old> <new>    Rename an item in <list> from <old> to <new>\n" +
     "\trl  renamelist <old> <new>       Rename the list <old> to <new>\n" +
     // println!("\tr   repeat <list> <item> <time>  Set an item to repeat (mark as un-done) every <time>");
@@ -514,6 +515,24 @@ fn cmd_move(
     dest_list.items.push(item);
     Ok(("".to_string(), true))
 }
+fn cmd_moveall(lists: &mut Vec<TodoList>, src_list_name: &str, dest_list_name: &str) -> CmdResult {
+    // check that the dest list exists first
+    // otherwise, either the borrow checker will yell at me (lists is borrowed mutable twice in src_list and dest_list)
+    // or a nonexistant dest list will casue the item to be removed and not replaced
+    let _ = get_list_by_name(lists, dest_list_name)?;
+    let src_list = get_mut_list_by_name(lists, src_list_name)?;
+    // Don't move a list into itself. Does not check recursively, so caution is still needed.
+    let mut items = src_list
+        .items
+        .extract_if(|item| match item {
+            ListEntry::List(list) => list != dest_list_name,
+            _ => true,
+        })
+        .collect::<Vec<ListEntry>>();
+    let dest_list = get_mut_list_by_name(lists, dest_list_name).unwrap(); // already checked
+    dest_list.items.append(&mut items);
+    Ok(("".to_string(), true))
+}
 
 fn cmd_autorm(lists: &mut Vec<TodoList>, list_name: &str) -> CmdResult {
     let list = get_mut_list_by_name(lists, &list_name)?;
@@ -601,7 +620,9 @@ fn main() {
         "rename"  | "rn"      if nargs >= 3 => cmd_rename(&mut lists, &args[2], &args[3], &args[4..].join(" ")),
         "renamelist" | "rl"   if nargs >= 2 => cmd_rnlist(&mut lists, &args[2], &args[3..].join(" ")),
         "rm" | "remove" | "r" if nargs >= 2 => cmd_remove(&mut lists, &args[2], &args[3..].join(" ")),
-        "move" | "mv" | "m"   if nargs >= 5 => cmd_move(&mut lists, &args[2], &args[4], &args[3]),
+        "move" | "mv" | "m"   if nargs >= 3 => cmd_move(&mut lists, &args[2], &args[4..].join(" "), &args[3]),
+        "moveall" | "mvall"
+        | "mva" | "ma"        if nargs >= 2 => cmd_moveall(&mut lists, &args[2], &args[3..].join(" ")),
         "today" | "t"
         | "week" | "w"
         | "overdue" | "od"    if nargs >= 1 => cmd_timeperiods(&lists, &args[2..], &args[1]),
