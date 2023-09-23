@@ -205,7 +205,8 @@ impl TodoList {
             })
             .collect::<Vec<&ListEntry>>();
 
-        writeln!(acc, "{}{}:", " ".repeat(indent * 4), self.name).unwrap();
+        let all_done = self.num_valid_entries(all, &mut |item: &&ListItem| !item.done) == 0;
+        writeln!(acc, "{}{}{}:", if all_done { "✓" } else { " " }, " ".repeat(indent * 4), self.name).unwrap();
         let indent = indent + 1;
         let indentstr = " ".repeat(indent * 4 - 1);
         for entry in entries_to_print {
@@ -408,6 +409,7 @@ fn cmd_lists(lists: &[TodoList]) -> CmdResult {
     let mut res = String::new();
     for i in lists {
         res.push_str(&i.name);
+        res.push('\n');
     }
     Ok((res, false))
 }
