@@ -167,7 +167,7 @@ impl TodoList {
 
     fn print<F: FnMut(&&ListItem) -> bool>(&self, all: &[TodoList], mut predicate: F) -> String {
         let mut acc = String::new();
-        let max = self.get_max_size(all, 0);
+        let max = self.get_max_size(all, 0, &mut predicate);
         self.print_inner(all, 0, max, &mut predicate, true, &mut acc);
         acc
     }
@@ -178,7 +178,7 @@ impl TodoList {
         mut predicate: F,
     ) -> String {
         let mut acc = String::new();
-        let max = self.get_max_size(all, 0);
+        let max = self.get_max_size(all, 0, &mut predicate);
         self.print_inner(all, 0, max, &mut predicate, false, &mut acc);
         acc
     }
@@ -243,7 +243,12 @@ impl TodoList {
             }
         }
     }
-    fn get_max_size(&self, all: &[TodoList], indent: usize) -> usize {
+    fn get_max_size<F: FnMut(&&ListItem) -> bool>(
+        &self,
+        all: &[TodoList],
+        indent: usize,
+        predicate: &mut F,
+    ) -> usize {
         let mut max = indent * 4 + self.name.len() + 1;
         let indent = indent + 1;
         for entry in &self.items {
@@ -253,10 +258,13 @@ impl TodoList {
                         max,
                         get_list_by_name(all, list_name)
                             .unwrap()
-                            .get_max_size(all, indent),
+                            .get_max_size(all, indent, predicate),
                     );
                 }
-                ListEntry::Item(item) => max = std::cmp::max(max, indent * 4 + item.name.len()),
+                ListEntry::Item(item) if predicate(&item) => {
+                    max = std::cmp::max(max, indent * 4 + item.name.len())
+                }
+                _ => (),
             }
         }
         max
@@ -522,13 +530,26 @@ fn cmd_moveall(lists: &mut Vec<TodoList>, src_list_name: &str, dest_list_name: &
     let _ = get_list_by_name(lists, dest_list_name)?;
     let src_list = get_mut_list_by_name(lists, src_list_name)?;
     // Don't move a list into itself. Does not check recursively, so caution is still needed.
-    let mut items = src_list
-        .items
-        .extract_if(|item| match item {
-            ListEntry::List(list) => list != dest_list_name,
-            _ => true,
-        })
-        .collect::<Vec<ListEntry>>();
+    // let mut items = src_list
+    //     .items
+    //     .extract_if(|item| match item {
+    //         ListEntry::List(list) => list != dest_list_name,
+    //         _ => true,
+    //     })
+    //     .collect::<Vec<ListEntry>>();
+
+    // f***ing extract_if is nightly, so I guess I'll just implement it myself...
+    let mut items = Vec::new();
+    let mut i = 0;
+    while i < src_list.items.len() {
+        if !matches!(&src_list.items[i], ListEntry::List(list) if list == dest_list_name) {
+            let val = src_list.items.remove(i);
+            items.push(val)
+        } else {
+            i += 1;
+        }
+    }
+
     let dest_list = get_mut_list_by_name(lists, dest_list_name).unwrap(); // already checked
     dest_list.items.append(&mut items);
     Ok(("".to_string(), true))
@@ -588,7 +609,7 @@ fn cmd_timeperiods(lists: &[TodoList], args: &[String], op: &str) -> CmdResult {
             false,
         ))
     } else {
-        Ok((list.print_without_date(&lists, filter), false))
+        Ok((list.print(&lists, filter), false))
     }
 }
 
