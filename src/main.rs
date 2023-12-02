@@ -295,7 +295,7 @@ fn save(fname: &Path, lists: &Vec<TodoList>) -> std::io::Result<()> {
 fn usage() -> String {
     "Usage:\ttodo <action> ...\n".to_string() +
     "\tls  lists                        Show all the lists\n" +
-    "\tl   list <list name>             Show the items in the specified list\n" +
+    "\tl   list <list name> [--small]   Show the items in the specified list.\n" +
     "\tn   new <name>                   Create a new list\n" +
     "\trl  rmlist <list>                Delete the specified list\n" +
     "\ta   add <list> <name> [date]     Add a new item to the specified list\n" +
@@ -410,8 +410,21 @@ fn parse_date(s: &str) -> Option<chrono::NaiveDate> {
 type CmdResult = Result<(String, bool), String>;
 
 fn cmd_list(lists: &[TodoList], name: &str) -> CmdResult {
-    let list = get_list_by_name(lists, name)?;
-    Ok((list.print(lists, |_| true), false))
+    if name.ends_with("--short") {
+        let list = get_list_by_name(lists, &name[..name.len() - 7].trim_end())?;
+        let mut item_names: Vec<&str> = Vec::new();
+        for i in &list.items {
+            if let ListEntry::Item(i) = i {
+                if !i.done {
+                    item_names.push(&i.name);
+                }
+            }
+        }
+        Ok((item_names.join(", "), false))
+    } else {
+        let list = get_list_by_name(lists, name)?;
+        Ok((list.print(lists, |_| true), false))
+    }
 }
 
 fn cmd_lists(lists: &[TodoList]) -> CmdResult {
