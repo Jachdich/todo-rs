@@ -206,9 +206,16 @@ impl TodoList {
             .collect::<Vec<&ListEntry>>();
 
         let all_done = self.num_valid_entries(all, &mut |item: &&ListItem| !item.done) == 0;
-        writeln!(acc, "{}{}{}:", if all_done { "✓" } else { " " }, " ".repeat(indent * 4), self.name).unwrap();
+        writeln!(
+            acc,
+            "{}{}{}:",
+            if all_done { "✓" } else { " " },
+            " ".repeat(indent * 4),
+            self.name
+        )
+        .unwrap();
         let indent = indent + 1;
-        let indentstr = " ".repeat(indent * 4 - 1);
+        let indentstr = " ".repeat(indent * 4);
         for entry in entries_to_print {
             match entry {
                 ListEntry::List(list_name) => {
