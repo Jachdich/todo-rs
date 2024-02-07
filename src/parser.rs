@@ -40,7 +40,7 @@ fn parse_text_item(line: &str, done: bool, line_num: usize) -> Result<ListEntry,
 fn parse_list_header(line: &str, line_num: usize) -> Result<TodoList, ParseError> {
     // Can probably remove this condition, because checked in the loop
     let first_char = line.chars().next();
-    if first_char.is_some_and(|c| c.is_whitespace()) {
+    if first_char.is_some_and(char::is_whitespace) {
         return Err(ParseError(format!(
             "Unexpected indent, expected unindented list name (line {line_num})",
         )));
@@ -57,17 +57,15 @@ fn parse_list_header(line: &str, line_num: usize) -> Result<TodoList, ParseError
 
 pub fn parse_str(s: &str) -> Result<Vec<TodoList>, ParseError> {
     let mut res: Vec<TodoList> = Vec::new();
-    let mut lines = s.lines().enumerate();
+    let lines = s.lines().enumerate();
 
-    while let Some((line_num, line)) = lines.next() {
+    for (line_num, line) in lines {
         let line_num = line_num + 1;
         if line.trim().is_empty() {
             // skip empty lines
             continue;
         }
-        if !line.chars().next().is_some_and(|c| c.is_whitespace()) {
-            res.push(parse_list_header(line, line_num + 1)?);
-        } else {
+        if line.chars().next().is_some_and(char::is_whitespace) {
             let line = line.trim_start();
             let (init, rest) = line.split_at(1);
             let rest = rest.trim_start();
@@ -82,15 +80,13 @@ pub fn parse_str(s: &str) -> Result<Vec<TodoList>, ParseError> {
             }?;
             // annoyingness to avoid using a match lol
             // basically returns an error if last_mut returns None
-            res.last_mut()
-                .map_or(
-                    Err(ParseError(format!(
-                        "Expected list header before item (line {line_num})"
-                    ))),
-                    |l| Ok(l),
-                )?
+            res.last_mut().ok_or_else(|| ParseError(format!(
+                    "Expected list header before item (line {line_num})"
+                )))?
                 .items
                 .push(item);
+        } else {
+            res.push(parse_list_header(line, line_num + 1)?);
         }
     }
     Ok(res)
@@ -99,18 +95,14 @@ pub fn parse_str(s: &str) -> Result<Vec<TodoList>, ParseError> {
 fn serialise_list(list: &TodoList) -> String {
     list.items
         .iter()
-        .fold(list.name.to_owned() + ":\n", |mut acc, item| {
+        .fold(list.name.clone() + ":\n", |mut acc, item| {
             acc += "\t";
             acc += &match item {
                 ListEntry::List(name) => format!("= {name}"),
                 ListEntry::Item(item) => format!(
                     "{} {}{}",
                     if item.done { "+" } else { "-" },
-                    if let Some(date) = item.date {
-                        format!("@{}", date.format("%d/%m/%Y"))
-                    } else {
-                        "".to_owned()
-                    },
+                    item.date.map_or_else(String::new, |date| format!("@{}", date.format("%d/%m/%Y"))),
                     &item.name
                 ),
             };
@@ -119,8 +111,8 @@ fn serialise_list(list: &TodoList) -> String {
         })
 }
 
-pub fn emit_str(ls: &Vec<TodoList>) -> String {
-    ls.iter().fold("".to_owned(), |mut acc, list| {
+pub fn emit_str(ls: &[TodoList]) -> String {
+    ls.iter().fold(String::new(), |mut acc, list| {
         acc += &serialise_list(list);
         acc
     })
