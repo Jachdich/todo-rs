@@ -80,9 +80,12 @@ pub fn parse_str(s: &str) -> Result<Vec<TodoList>, ParseError> {
             }?;
             // annoyingness to avoid using a match lol
             // basically returns an error if last_mut returns None
-            res.last_mut().ok_or_else(|| ParseError(format!(
-                    "Expected list header before item (line {line_num})"
-                )))?
+            res.last_mut()
+                .ok_or_else(|| {
+                    ParseError(format!(
+                        "Expected list header before item (line {line_num})"
+                    ))
+                })?
                 .items
                 .push(item);
         } else {
@@ -102,7 +105,8 @@ fn serialise_list(list: &TodoList) -> String {
                 ListEntry::Item(item) => format!(
                     "{} {}{}",
                     if item.done { "+" } else { "-" },
-                    item.date.map_or_else(String::new, |date| format!("@{}", date.format("%d/%m/%Y"))),
+                    item.date
+                        .map_or_else(String::new, |date| format!("@{}", date.format("%d/%m/%Y"))),
                     &item.name
                 ),
             };

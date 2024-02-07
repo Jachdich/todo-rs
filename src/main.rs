@@ -7,11 +7,11 @@ use chrono::Datelike;
 use chrono::{DateTime, Local};
 
 use linked_hash_map::LinkedHashMap;
-use std::{convert::TryInto, io::Read};
+use std::convert::TryFrom;
 use std::io::Write;
 use std::path::Path;
+use std::{convert::TryInto, io::Read};
 use yaml_rust::Yaml;
-use std::convert::TryFrom;
 
 #[derive(Debug)]
 pub struct ListItem {
@@ -43,10 +43,7 @@ impl ListEntry {
             Self::Item(item) => {
                 let mut map: LinkedHashMap<Yaml, Yaml> = LinkedHashMap::new();
                 map.insert(Yaml::String("type".into()), Yaml::String("item".into()));
-                map.insert(
-                    Yaml::String("name".into()),
-                    Yaml::String(item.name.clone()),
-                );
+                map.insert(Yaml::String("name".into()), Yaml::String(item.name.clone()));
                 map.insert(Yaml::String("done".into()), Yaml::Boolean(item.done));
                 if item.priority != 0 {
                     map.insert(
@@ -88,8 +85,11 @@ impl ListEntry {
         match ty {
             "item" => Self::Item(ListItem {
                 name: y["name"].as_str().unwrap().to_owned(),
-                date: y["date"].as_i64().map(|date| deserialise_date(date.try_into().expect("Date is too large"))),
-                priority: i32::try_from(y["priority"].as_i64().unwrap_or(0)).expect("Priority is too large"),
+                date: y["date"]
+                    .as_i64()
+                    .map(|date| deserialise_date(date.try_into().expect("Date is too large"))),
+                priority: i32::try_from(y["priority"].as_i64().unwrap_or(0))
+                    .expect("Priority is too large"),
                 done: y["done"].as_bool().unwrap_or(false),
                 repeat_every: y["repeat_every"].as_i64().unwrap_or(0),
                 repeat_next: y["repeat_next"].as_i64().unwrap_or(0),
@@ -123,10 +123,7 @@ impl TodoList {
         }
 
         let mut map: LinkedHashMap<Yaml, Yaml> = LinkedHashMap::new();
-        map.insert(
-            Yaml::String("name".into()),
-            Yaml::String(self.name.clone()),
-        );
+        map.insert(Yaml::String("name".into()), Yaml::String(self.name.clone()));
         map.insert(Yaml::String("entries".into()), Yaml::Array(out));
         Yaml::Hash(map)
     }
@@ -151,9 +148,7 @@ impl TodoList {
         self.items
             .iter()
             .map(|item| match item {
-                ListEntry::Item(item) => {
-                    usize::from(predicate(&item))
-                }
+                ListEntry::Item(item) => usize::from(predicate(&item)),
                 ListEntry::List(name) => get_list_by_name(all, name)
                     .unwrap()
                     .num_valid_entries(all, predicate),
@@ -222,15 +217,15 @@ impl TodoList {
                 ListEntry::Item(item) => {
                     if print_date && item.date.is_some() || item.priority != 0 {
                         let tabs = " ".repeat(maxsize - indentstr.len() - item.name.len());
-                        let duration = item.date.unwrap() - chrono::Local::now().naive_local().date();
-                        let time_until =
-                            if duration.num_days() == 1 {
-                                "in 1 day".into()
-                            } else if duration.num_days() < 0 {
-                                format!("{} days ago", -duration.num_days())
-                            } else {
-                                format!("in {} days", duration.num_days())
-                            };
+                        let duration =
+                            item.date.unwrap() - chrono::Local::now().naive_local().date();
+                        let time_until = if duration.num_days() == 1 {
+                            "in 1 day".into()
+                        } else if duration.num_days() < 0 {
+                            format!("{} days ago", -duration.num_days())
+                        } else {
+                            format!("in {} days", duration.num_days())
+                        };
                         writeln!(
                             acc,
                             "{}{}{}{}\t{} ({})",
@@ -406,7 +401,10 @@ fn get_index_by_name(list: &TodoList, itemname: &str) -> Result<usize, String> {
 }
 
 fn parse_date(s: &str) -> Option<chrono::NaiveDate> {
-    chrono::NaiveDate::parse_from_str(s, "%d/%m/%y").map_or_else(|_| chrono::NaiveDate::parse_from_str(s, "%d/%m/%Y").ok(), Some)
+    chrono::NaiveDate::parse_from_str(s, "%d/%m/%y").map_or_else(
+        |_| chrono::NaiveDate::parse_from_str(s, "%d/%m/%Y").ok(),
+        Some,
+    )
 }
 
 type CmdResult = Result<(String, bool), String>;
@@ -453,7 +451,10 @@ fn cmd_add(lists: &mut [TodoList], args: &[String]) -> CmdResult {
     let list = get_mut_list_by_name(lists, &args[0])?;
     let last_arg = &args[args.len() - 1];
 
-    let (name, date) = parse_date(last_arg).map_or_else(|| (args[1..].join(" "), None), |timestamp| (args[1..(args.len() - 1)].join(" "), Some(timestamp)));
+    let (name, date) = parse_date(last_arg).map_or_else(
+        || (args[1..].join(" "), None),
+        |timestamp| (args[1..(args.len() - 1)].join(" "), Some(timestamp)),
+    );
 
     list.items.push(ListEntry::Item(ListItem {
         name,
