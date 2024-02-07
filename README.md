@@ -24,6 +24,7 @@ Usage:	todo <action> ...
                                          If --short is passed, return only the number of tasks, do not list them.
 	w   week <list> [--short]        List all tasks with a deadline of within the next 7 days
 	od  overdue <list> [--short]     List all non-completed tasks with a deadline in the past```
+```
 
 # Demo
 
