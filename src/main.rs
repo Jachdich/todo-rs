@@ -1,13 +1,17 @@
+#![warn(clippy::all, clippy::pedantic, clippy::nursery)]
+#![allow(dead_code, clippy::unnecessary_wraps)]
+
 mod parser;
 
 use chrono::Datelike;
 use chrono::{DateTime, Local};
-use dirs;
+
 use linked_hash_map::LinkedHashMap;
-use std::io::Read;
+use std::convert::TryFrom;
 use std::io::Write;
 use std::path::Path;
-use yaml_rust::{Yaml, YamlEmitter, YamlLoader};
+use std::{convert::TryInto, io::Read};
+use yaml_rust::Yaml;
 
 #[derive(Debug)]
 pub struct ListItem {
@@ -25,7 +29,7 @@ pub enum ListEntry {
     List(String),
 }
 
-fn serialise_date(date: &chrono::NaiveDate) -> i32 {
+fn serialise_date(date: chrono::NaiveDate) -> i32 {
     date.num_days_from_ce()
 }
 
@@ -36,13 +40,10 @@ fn deserialise_date(date: i32) -> chrono::NaiveDate {
 impl ListEntry {
     fn to_yaml(&self) -> Yaml {
         match self {
-            ListEntry::Item(item) => {
+            Self::Item(item) => {
                 let mut map: LinkedHashMap<Yaml, Yaml> = LinkedHashMap::new();
                 map.insert(Yaml::String("type".into()), Yaml::String("item".into()));
-                map.insert(
-                    Yaml::String("name".into()),
-                    Yaml::String(item.name.to_owned()),
-                );
+                map.insert(Yaml::String("name".into()), Yaml::String(item.name.clone()));
                 map.insert(Yaml::String("done".into()), Yaml::Boolean(item.done));
                 if item.priority != 0 {
                     map.insert(
@@ -53,24 +54,24 @@ impl ListEntry {
                 if let Some(date) = item.date {
                     map.insert(
                         Yaml::String("date".into()),
-                        Yaml::Integer(serialise_date(&date).into()),
+                        Yaml::Integer(serialise_date(date).into()),
                     );
                 }
                 if item.repeat_every != 0 {
                     map.insert(
                         Yaml::String("repeat_every".into()),
-                        Yaml::Integer(item.repeat_every.into()),
+                        Yaml::Integer(item.repeat_every),
                     );
                 }
                 if item.repeat_next != 0 {
                     map.insert(
                         Yaml::String("repeat_next".into()),
-                        Yaml::Integer(item.repeat_next.into()),
+                        Yaml::Integer(item.repeat_next),
                     );
                 }
                 Yaml::Hash(map)
             }
-            ListEntry::List(list) => {
+            Self::List(list) => {
                 let mut map: LinkedHashMap<Yaml, Yaml> = LinkedHashMap::new();
                 map.insert(Yaml::String("type".into()), Yaml::String("list".into()));
                 map.insert(Yaml::String("name".into()), Yaml::String(list.to_owned()));
@@ -82,20 +83,19 @@ impl ListEntry {
     fn from_yaml(y: &Yaml) -> Self {
         let ty = y["type"].as_str().unwrap();
         match ty {
-            "item" => ListEntry::Item(ListItem {
+            "item" => Self::Item(ListItem {
                 name: y["name"].as_str().unwrap().to_owned(),
-                date: if let Some(date) = y["date"].as_i64() {
-                    Some(deserialise_date(date as i32))
-                } else {
-                    None
-                },
-                priority: y["priority"].as_i64().unwrap_or(0) as i32,
+                date: y["date"]
+                    .as_i64()
+                    .map(|date| deserialise_date(date.try_into().expect("Date is too large"))),
+                priority: i32::try_from(y["priority"].as_i64().unwrap_or(0))
+                    .expect("Priority is too large"),
                 done: y["done"].as_bool().unwrap_or(false),
                 repeat_every: y["repeat_every"].as_i64().unwrap_or(0),
                 repeat_next: y["repeat_next"].as_i64().unwrap_or(0),
             }),
 
-            "list" => ListEntry::List(y["name"].as_str().unwrap().to_owned()),
+            "list" => Self::List(y["name"].as_str().unwrap().to_owned()),
 
             _ => panic!("Expected either 'item' or 'list', got '{}'", ty),
         }
@@ -110,7 +110,7 @@ pub struct TodoList {
 
 impl TodoList {
     fn new(name: String) -> Self {
-        TodoList {
+        Self {
             name,
             items: Vec::new(),
         }
@@ -123,10 +123,7 @@ impl TodoList {
         }
 
         let mut map: LinkedHashMap<Yaml, Yaml> = LinkedHashMap::new();
-        map.insert(
-            Yaml::String("name".into()),
-            Yaml::String(self.name.to_owned()),
-        );
+        map.insert(Yaml::String("name".into()), Yaml::String(self.name.clone()));
         map.insert(Yaml::String("entries".into()), Yaml::Array(out));
         Yaml::Hash(map)
     }
@@ -135,7 +132,7 @@ impl TodoList {
         let name = val["name"].as_str().unwrap().to_owned();
         let mut entries: Vec<ListEntry> = Vec::new();
         for y in val["entries"].as_vec().unwrap() {
-            entries.push(ListEntry::from_yaml(&y));
+            entries.push(ListEntry::from_yaml(y));
         }
         Self {
             name,
@@ -145,19 +142,13 @@ impl TodoList {
 
     fn num_valid_entries<F: FnMut(&&ListItem) -> bool>(
         &self,
-        all: &[TodoList],
+        all: &[Self],
         predicate: &mut F,
     ) -> usize {
         self.items
             .iter()
             .map(|item| match item {
-                ListEntry::Item(item) => {
-                    if predicate(&item) {
-                        1
-                    } else {
-                        0
-                    }
-                }
+                ListEntry::Item(item) => usize::from(predicate(&item)),
                 ListEntry::List(name) => get_list_by_name(all, name)
                     .unwrap()
                     .num_valid_entries(all, predicate),
@@ -165,7 +156,7 @@ impl TodoList {
             .sum()
     }
 
-    fn print<F: FnMut(&&ListItem) -> bool>(&self, all: &[TodoList], mut predicate: F) -> String {
+    fn print<F: FnMut(&&ListItem) -> bool>(&self, all: &[Self], mut predicate: F) -> String {
         let mut acc = String::new();
         let max = self.get_max_size(all, 0, &mut predicate);
         self.print_inner(all, 0, max, &mut predicate, true, &mut acc);
@@ -174,7 +165,7 @@ impl TodoList {
 
     fn print_without_date<F: FnMut(&&ListItem) -> bool>(
         &self,
-        all: &[TodoList],
+        all: &[Self],
         mut predicate: F,
     ) -> String {
         let mut acc = String::new();
@@ -185,7 +176,7 @@ impl TodoList {
 
     fn print_inner<F: FnMut(&&ListItem) -> bool>(
         &self,
-        all: &[TodoList],
+        all: &[Self],
         indent: usize,
         maxsize: usize,
         predicate: &mut F,
@@ -263,7 +254,7 @@ impl TodoList {
     }
     fn get_max_size<F: FnMut(&&ListItem) -> bool>(
         &self,
-        all: &[TodoList],
+        all: &[Self],
         indent: usize,
         predicate: &mut F,
     ) -> usize {
@@ -280,9 +271,9 @@ impl TodoList {
                     );
                 }
                 ListEntry::Item(item) if predicate(&item) => {
-                    max = std::cmp::max(max, indent * 4 + item.name.len())
+                    max = std::cmp::max(max, indent * 4 + item.name.len());
                 }
-                _ => (),
+                ListEntry::Item(_) => (),
             }
         }
         max
@@ -303,7 +294,7 @@ fn load(fname: &Path) -> std::io::Result<Vec<TodoList>> {
     result
 }
 
-fn save(fname: &Path, lists: &Vec<TodoList>) -> std::io::Result<()> {
+fn save(fname: &Path, lists: &[TodoList]) -> std::io::Result<()> {
     let mut file = std::fs::File::create(fname)?;
     let out = parser::emit_str(lists);
 
@@ -382,56 +373,48 @@ fn get_mut_list_by_name<'a>(
 
 fn get_index_by_name(list: &TodoList, itemname: &str) -> Result<usize, String> {
     let mut idx = Err(format!("Item '{itemname}' does not exist"));
-    let mut cidx: usize = 0;
-    for item in &list.items {
-        let citemname = match &item {
-            ListEntry::List(l) => &l,
+    for (item_index, item) in list.items.iter().enumerate() {
+        let this_item_name = match &item {
+            ListEntry::List(l) => l,
             ListEntry::Item(i) => &i.name,
         };
-        if citemname == itemname {
-            idx = Ok(cidx);
+        if this_item_name == itemname {
+            idx = Ok(item_index);
         }
-
-        cidx += 1;
     }
 
     if idx.is_err() {
-        cidx = 0;
-        for item in &list.items {
-            let citemname = match &item {
-                ListEntry::List(l) => &l,
+        for (item_index, item) in list.items.iter().enumerate() {
+            let this_item_name = match &item {
+                ListEntry::List(l) => l,
                 ListEntry::Item(i) => &i.name,
             };
-            if citemname.starts_with(itemname) {
+            if this_item_name.starts_with(itemname) {
                 if idx.is_err() {
-                    idx = Ok(cidx);
+                    idx = Ok(item_index);
                 } else {
                     return Err(format!(
                         "Item '{itemname}' is not specific enough to match a single item"
                     ));
                 }
             }
-            cidx += 1;
         }
     }
     idx
 }
 
 fn parse_date(s: &str) -> Option<chrono::NaiveDate> {
-    if let Ok(d) = chrono::NaiveDate::parse_from_str(s, "%d/%m/%y") {
-        Some(d)
-    } else if let Ok(d) = chrono::NaiveDate::parse_from_str(s, "%d/%m/%Y") {
-        Some(d)
-    } else {
-        None
-    }
+    chrono::NaiveDate::parse_from_str(s, "%d/%m/%y").map_or_else(
+        |_| chrono::NaiveDate::parse_from_str(s, "%d/%m/%Y").ok(),
+        Some,
+    )
 }
 
 type CmdResult = Result<(String, bool), String>;
 
 fn cmd_list(lists: &[TodoList], name: &str) -> CmdResult {
-    if name.ends_with("--short") {
-        let list = get_list_by_name(lists, &name[..name.len() - 7].trim_end())?;
+    if let Some(name) = name.strip_suffix("--short") {
+        let list = get_list_by_name(lists, name.trim_end())?;
         let mut item_names: Vec<&str> = Vec::new();
         for i in &list.items {
             if let ListEntry::Item(i) = i {
@@ -458,24 +441,23 @@ fn cmd_lists(lists: &[TodoList]) -> CmdResult {
 
 fn cmd_new(lists: &mut Vec<TodoList>, name: String) -> CmdResult {
     lists.push(TodoList::new(name));
-    Ok(("".to_string(), true))
+    Ok((String::new(), true))
 }
 
-fn cmd_rmlist(lists: &mut Vec<TodoList>, name: String) -> CmdResult {
-    let name = get_list_by_name(lists, &name)?.name.to_owned();
+fn cmd_rmlist(lists: &mut Vec<TodoList>, name: &str) -> CmdResult {
+    let name = get_list_by_name(lists, name)?.name.clone();
     lists.retain(|l| l.name != name);
-    Ok(("".to_string(), true))
+    Ok((String::new(), true))
 }
 
-fn cmd_add(lists: &mut Vec<TodoList>, args: &[String]) -> CmdResult {
+fn cmd_add(lists: &mut [TodoList], args: &[String]) -> CmdResult {
     let list = get_mut_list_by_name(lists, &args[0])?;
     let last_arg = &args[args.len() - 1];
 
-    let (name, date) = if let Some(timestamp) = parse_date(last_arg) {
-        (args[1..(args.len() - 1)].join(" "), Some(timestamp))
-    } else {
-        (args[1..].join(" "), None)
-    };
+    let (name, date) = parse_date(last_arg).map_or_else(
+        || (args[1..].join(" "), None),
+        |timestamp| (args[1..(args.len() - 1)].join(" "), Some(timestamp)),
+    );
 
     list.items.push(ListEntry::Item(ListItem {
         name,
@@ -485,63 +467,63 @@ fn cmd_add(lists: &mut Vec<TodoList>, args: &[String]) -> CmdResult {
         repeat_every: 0,
         repeat_next: 0,
     }));
-    Ok(("".to_string(), true))
+    Ok((String::new(), true))
 }
 
-fn cmd_addlist(lists: &mut Vec<TodoList>, dest_list: &str, src_list: &str) -> CmdResult {
-    let lname = get_list_by_name(lists, src_list)?.name.to_owned();
+fn cmd_addlist(lists: &mut [TodoList], dest_list: &str, src_list: &str) -> CmdResult {
+    let lname = get_list_by_name(lists, src_list)?.name.clone();
     let list = get_mut_list_by_name(lists, dest_list)?;
     list.items.push(ListEntry::List(lname));
-    Ok(("".to_string(), true))
+    Ok((String::new(), true))
 }
 
-fn cmd_done(lists: &mut Vec<TodoList>, list_name: &str, item_name: &str) -> CmdResult {
+fn cmd_done(lists: &mut [TodoList], list_name: &str, item_name: &str) -> CmdResult {
     let list = get_mut_list_by_name(lists, list_name)?;
     let idx = get_index_by_name(list, item_name)?;
     if let ListEntry::Item(i) = &mut list.items[idx] {
         i.done = !i.done;
-        Ok(("".to_string(), true))
+        Ok((String::new(), true))
     } else {
         Err("You can't done a list silly (todo add this feature cos its cool)".to_string())
     }
 }
 
-fn cmd_doneall(lists: &mut Vec<TodoList>, list_name: &str, target_state: bool) -> CmdResult {
+fn cmd_doneall(lists: &mut [TodoList], list_name: &str, target_state: bool) -> CmdResult {
     let list = get_mut_list_by_name(lists, list_name)?;
-    for item in list.items.iter_mut() {
+    for item in &mut list.items {
         if let ListEntry::Item(item) = item {
             item.done = target_state;
         }
     }
-    Ok(("".to_string(), true))
+    Ok((String::new(), true))
 }
 
-fn cmd_remove(lists: &mut Vec<TodoList>, list_name: &str, item_name: &str) -> CmdResult {
+fn cmd_remove(lists: &mut [TodoList], list_name: &str, item_name: &str) -> CmdResult {
     let list = get_mut_list_by_name(lists, list_name)?;
     let idx = get_index_by_name(list, item_name)?;
     list.items.remove(idx);
-    Ok(("".to_string(), true))
+    Ok((String::new(), true))
 }
 
-fn cmd_rename(lists: &mut Vec<TodoList>, list_name: &str, old: &str, new: &str) -> CmdResult {
+fn cmd_rename(lists: &mut [TodoList], list_name: &str, old: &str, new: &str) -> CmdResult {
     let list = get_mut_list_by_name(lists, list_name)?;
-    let idx = get_index_by_name(&list, old)?;
+    let idx = get_index_by_name(list, old)?;
     if let ListEntry::Item(i) = &mut list.items[idx] {
         i.name = new.to_owned();
-        Ok(("".to_string(), true))
+        Ok((String::new(), true))
     } else {
         Err("Renaming a list entry doesn't really make sense".to_string())
     }
 }
 
-fn cmd_rnlist(lists: &mut Vec<TodoList>, old: &str, new: &str) -> CmdResult {
+fn cmd_rnlist(lists: &mut [TodoList], old: &str, new: &str) -> CmdResult {
     let list = get_mut_list_by_name(lists, old)?;
     list.name = new.to_owned();
-    Ok(("".to_string(), true))
+    Ok((String::new(), true))
 }
 
 fn cmd_move(
-    lists: &mut Vec<TodoList>,
+    lists: &mut [TodoList],
     src_list_name: &str,
     dest_list_name: &str,
     item_name: &str,
@@ -556,9 +538,9 @@ fn cmd_move(
 
     let dest_list = get_mut_list_by_name(lists, dest_list_name).unwrap(); // already checked
     dest_list.items.push(item);
-    Ok(("".to_string(), true))
+    Ok((String::new(), true))
 }
-fn cmd_moveall(lists: &mut Vec<TodoList>, src_list_name: &str, dest_list_name: &str) -> CmdResult {
+fn cmd_moveall(lists: &mut [TodoList], src_list_name: &str, dest_list_name: &str) -> CmdResult {
     // check that the dest list exists first
     // otherwise, either the borrow checker will yell at me (lists is borrowed mutable twice in src_list and dest_list)
     // or a nonexistant dest list will casue the item to be removed and not replaced
@@ -577,26 +559,26 @@ fn cmd_moveall(lists: &mut Vec<TodoList>, src_list_name: &str, dest_list_name: &
     let mut items = Vec::new();
     let mut i = 0;
     while i < src_list.items.len() {
-        if !matches!(&src_list.items[i], ListEntry::List(list) if list == dest_list_name) {
-            let val = src_list.items.remove(i);
-            items.push(val)
-        } else {
+        if matches!(&src_list.items[i], ListEntry::List(list) if list == dest_list_name) {
             i += 1;
+        } else {
+            let val = src_list.items.remove(i);
+            items.push(val);
         }
     }
 
     let dest_list = get_mut_list_by_name(lists, dest_list_name).unwrap(); // already checked
     dest_list.items.append(&mut items);
-    Ok(("".to_string(), true))
+    Ok((String::new(), true))
 }
 
-fn cmd_autorm(lists: &mut Vec<TodoList>, list_name: &str) -> CmdResult {
-    let list = get_mut_list_by_name(lists, &list_name)?;
+fn cmd_autorm(lists: &mut [TodoList], list_name: &str) -> CmdResult {
+    let list = get_mut_list_by_name(lists, list_name)?;
     list.items.retain(|item| match item {
         ListEntry::Item(item) => !item.done,
-        _ => true,
+        ListEntry::List(_) => true,
     });
-    Ok(("".to_string(), true))
+    Ok((String::new(), true))
 }
 
 fn cmd_timeperiods(lists: &[TodoList], args: &[String], op: &str) -> CmdResult {
@@ -619,7 +601,7 @@ fn cmd_timeperiods(lists: &[TodoList], args: &[String], op: &str) -> CmdResult {
         (args.join(" "), false)
     };
 
-    let list = get_list_by_name(&lists, &list_name)?;
+    let list = get_list_by_name(lists, &list_name)?;
     let now: DateTime<Local> = Local::now();
     let today = now.date_naive();
     let mut filter = |item: &&ListItem| {
@@ -629,10 +611,10 @@ fn cmd_timeperiods(lists: &[TodoList], args: &[String], op: &str) -> CmdResult {
             && item.date.unwrap() - today >= min_diff
     };
     if short {
-        let num = list.num_valid_entries(&lists, &mut filter);
+        let num = list.num_valid_entries(lists, &mut filter);
         if num == 0 {
             // don't bother printing if there's none. maybe should make this configurable.
-            return Ok(("".to_string(), false));
+            return Ok((String::new(), false));
         }
         Ok((
             format!(
@@ -644,7 +626,7 @@ fn cmd_timeperiods(lists: &[TodoList], args: &[String], op: &str) -> CmdResult {
             false,
         ))
     } else {
-        Ok((list.print(&lists, filter), false))
+        Ok((list.print(lists, filter), false))
     }
 }
 
@@ -660,7 +642,7 @@ fn main() {
     std::fs::create_dir_all(&list_file)
         .expect("Unable to create the config directory. Do you have the right permissions?");
     list_file.push("todo.txt");
-    let mut lists = load(list_file.as_path()).unwrap_or(Vec::new());
+    let mut lists = load(list_file.as_path()).unwrap_or_default();
 
     let nargs = args.len() - 2;
     #[rustfmt::skip] // ree it looks better all nicely indented
@@ -668,7 +650,7 @@ fn main() {
         "list"    | "l"       if nargs >= 1 => cmd_list(&lists, &args[2..].join(" ")),
         "lists"   | "ls"      if nargs == 0 => cmd_lists(&lists),
         "new"     | "n"       if nargs > 0 => cmd_new(&mut lists, args[2..].join(" ")),
-        "rmlist"  | "rl"      if nargs > 0 => cmd_rmlist(&mut lists, args[2..].join(" ")),
+        "rmlist"  | "rl"      if nargs > 0 => cmd_rmlist(&mut lists, &args[2..].join(" ")),
         "add"     | "a"       if nargs >= 2 => cmd_add(&mut lists, &args[2..]),
         "addlist" | "al"      if nargs == 2 => cmd_addlist(&mut lists, &args[2], &args[3]),
         "done"    | "d"       if nargs >= 2 => cmd_done(&mut lists, &args[2], &args[3..].join(" ")),
@@ -696,6 +678,6 @@ fn main() {
                 save(list_file.as_path(), &lists).unwrap();
             }
         }
-        Err(e) => writeln!(std::io::stderr(), "{e}").unwrap(),
+        Err(e) => eprintln!("{e}"),
     }
 }
