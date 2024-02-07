@@ -5,17 +5,25 @@ Simple yet powerful terminal todo list program. The key feature is the ability t
 Commands:
 ```
 Usage:	todo <action> ...
-	lists				Show all the lists
-	list <list name>		Show the items in the specified list
-	new <name>			Create a new list
-	add <list> <name> [date, [priority]]	Add a new item to the specified list
-	addlist <dest> <src>		Add a reference of list <src> to list <dest>
-	done <list> <item>		Mark the specified item as done
-	rm <list> <item>		Remove <item> from <list>
-	mv <list> <item> <list>		Move an <item> from <list> to another <list>
-	repeat <list> <item> <time>	Set an item to repeat (mark as un-done) every <time>
-	autorm <list>			Remove all items in <list> that are marked as done
-```
+	ls  lists                        Show all the lists
+	l   list <list name> [--small]   Show the items in the specified list.
+	n   new <name>                   Create a new list
+	rl  rmlist <list>                Delete the specified list
+	a   add <list> <name> [date]     Add a new item to the specified list
+	al  addlist <dest> <src>         Add a reference of list <src> to list <dest>
+	d   done <list> <item>           Mark the specified item as done
+	da  doneall <list>               Mark all items in list as done
+	uda undoneall <list>             Mark all items in list as not done
+	rm  remove <list> <item>         Remove <item> from <list>
+	mv  move <source> <item> <dest>  Move an <item> from the list <source> to <dest>
+	mva moveall <source> <dest>      Move every item from <source> into <dest>. Does not move sublist of source into itself
+	rn  rename <list> <old> <new>    Rename an item in <list> from <old> to <new>
+	rl  renamelist <old> <new>       Rename the list <old> to <new>
+	ar  autorm <list>                Remove all items in <list> that are marked as done
+	t   today <list> [--short]       List all tasks with a deadline of today.
+                                         If --short is passed, return only the number of tasks, do not list them.
+	w   week <list> [--short]        List all tasks with a deadline of within the next 7 days
+	od  overdue <list> [--short]     List all non-completed tasks with a deadline in the past```
 
 # Demo
 

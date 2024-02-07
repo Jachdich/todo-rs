@@ -226,15 +226,15 @@ impl TodoList {
                 ListEntry::Item(item) => {
                     if print_date && item.date.is_some() || item.priority != 0 {
                         let tabs = " ".repeat(maxsize - indentstr.len() - item.name.len());
-                        let duration = item.date.unwrap() - chrono::Local::now().naive_local().date();
-                        let time_until =
-                            if duration.num_days() == 1 {
-                                "in 1 day".into()
-                            } else if duration.num_days() < 0 {
-                                format!("{} days ago", -duration.num_days())
-                            } else {
-                                format!("in {} days", duration.num_days())
-                            };
+                        let duration =
+                            item.date.unwrap() - chrono::Local::now().naive_local().date();
+                        let time_until = if duration.num_days() == 1 {
+                            "in 1 day".into()
+                        } else if duration.num_days() < 0 {
+                            format!("{} days ago", -duration.num_days())
+                        } else {
+                            format!("in {} days", duration.num_days())
+                        };
                         writeln!(
                             acc,
                             "{}{}{}{}\t{} ({})",
@@ -294,10 +294,13 @@ fn load(fname: &Path) -> std::io::Result<Vec<TodoList>> {
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
 
-    match parser::parse_str(&contents) {
+    let start = std::time::Instant::now();
+    let result = match parser::parse_str(&contents) {
         Ok(l) => Ok(l),
         Err(e) => Err(std::io::Error::new(std::io::ErrorKind::InvalidData, e.0)),
-    }
+    };
+    println!("{}", start.elapsed().as_micros());
+    result
 }
 
 fn save(fname: &Path, lists: &Vec<TodoList>) -> std::io::Result<()> {
