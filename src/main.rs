@@ -1,5 +1,5 @@
 #![warn(clippy::all, clippy::pedantic, clippy::nursery)]
-#![allow(dead_code)]
+#![allow(dead_code, clippy::unnecessary_wraps)]
 
 mod parser;
 
@@ -427,18 +427,18 @@ fn cmd_list(lists: &[TodoList], name: &str) -> CmdResult {
     }
 }
 
-fn cmd_lists(lists: &[TodoList]) -> (std::string::String, bool) {
+fn cmd_lists(lists: &[TodoList]) -> CmdResult {
     let mut res = String::new();
     for i in lists {
         res.push_str(&i.name);
         res.push('\n');
     }
-    (res, false)
+    Ok((res, false))
 }
 
-fn cmd_new(lists: &mut Vec<TodoList>, name: String) -> (std::string::String, bool) {
+fn cmd_new(lists: &mut Vec<TodoList>, name: String) -> CmdResult {
     lists.push(TodoList::new(name));
-    (String::new(), true)
+    Ok((String::new(), true))
 }
 
 fn cmd_rmlist(lists: &mut Vec<TodoList>, name: &str) -> CmdResult {
@@ -645,8 +645,8 @@ fn main() {
     #[rustfmt::skip] // ree it looks better all nicely indented
     let result = match args[1].as_str() {
         "list"    | "l"       if nargs >= 1 => cmd_list(&lists, &args[2..].join(" ")),
-        "lists"   | "ls"      if nargs == 0 => Ok(cmd_lists(&lists)),
-        "new"     | "n"       if nargs > 0 => Ok(cmd_new(&mut lists, args[2..].join(" "))),
+        "lists"   | "ls"      if nargs == 0 => cmd_lists(&lists),
+        "new"     | "n"       if nargs > 0 => cmd_new(&mut lists, args[2..].join(" ")),
         "rmlist"  | "rl"      if nargs > 0 => cmd_rmlist(&mut lists, &args[2..].join(" ")),
         "add"     | "a"       if nargs >= 2 => cmd_add(&mut lists, &args[2..]),
         "addlist" | "al"      if nargs == 2 => cmd_addlist(&mut lists, &args[2], &args[3]),
