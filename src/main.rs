@@ -9,7 +9,8 @@ use chrono::{DateTime, Local};
 use linked_hash_map::LinkedHashMap;
 use std::convert::TryFrom;
 use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use std::{convert::TryInto, io::Read};
 use yaml_rust::Yaml;
 
@@ -285,12 +286,10 @@ fn load(fname: &Path) -> std::io::Result<Vec<TodoList>> {
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
 
-    let start = std::time::Instant::now();
     let result = match parser::parse_str(&contents) {
         Ok(l) => Ok(l),
         Err(e) => Err(std::io::Error::new(std::io::ErrorKind::InvalidData, e.0)),
     };
-    println!("{}", start.elapsed().as_micros());
     result
 }
 
@@ -636,13 +635,23 @@ fn main() {
         println!("{}", usage());
         return;
     }
-    let mut list_file =
-        dirs::config_dir().expect("Unable to locate config directory. What OS are you on?!");
-    list_file.push("todo");
-    std::fs::create_dir_all(&list_file)
-        .expect("Unable to create the config directory. Do you have the right permissions?");
-    list_file.push("todo.txt");
-    let mut lists = load(list_file.as_path()).unwrap_or_default();
+    
+    let mut list_file = Path::new("todo.txt");
+    let mut lists;
+    let mut global_list_file;
+    match load(list_file) {
+        Ok(l) => lists = l,
+        Err(_) => {
+            global_list_file =
+                dirs::config_dir().expect("Unable to locate config directory. What OS are you on?!");
+            global_list_file.push("todo");
+            std::fs::create_dir_all(&global_list_file)
+                .expect("Unable to create the config directory. Do you have the right permissions?");
+            global_list_file.push("todo.txt");
+            list_file = global_list_file.as_path();
+            lists = load(list_file).unwrap_or_default();
+        }
+    }
 
     let nargs = args.len() - 2;
     #[rustfmt::skip] // ree it looks better all nicely indented
@@ -675,7 +684,7 @@ fn main() {
         Ok((msg, modified)) => {
             print!("{msg}");
             if modified {
-                save(list_file.as_path(), &lists).unwrap();
+                save(list_file, &lists).unwrap();
             }
         }
         Err(e) => eprintln!("{e}"),
