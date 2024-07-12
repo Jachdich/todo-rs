@@ -6,22 +6,15 @@ mod parser;
 use chrono::Datelike;
 use chrono::{DateTime, Local};
 
-use linked_hash_map::LinkedHashMap;
-use std::convert::TryFrom;
+use std::io::Read;
 use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::str::FromStr;
-use std::{convert::TryInto, io::Read};
-use yaml_rust::Yaml;
+use std::path::Path;
 
 #[derive(Debug)]
 pub struct ListItem {
     name: String,
     date: Option<chrono::NaiveDate>,
-    priority: i32,
     done: bool,
-    repeat_every: i64,
-    repeat_next: i64,
 }
 
 #[derive(Debug)]
@@ -38,71 +31,6 @@ fn deserialise_date(date: i32) -> chrono::NaiveDate {
     chrono::NaiveDate::from_num_days_from_ce_opt(date).unwrap()
 }
 
-impl ListEntry {
-    fn to_yaml(&self) -> Yaml {
-        match self {
-            Self::Item(item) => {
-                let mut map: LinkedHashMap<Yaml, Yaml> = LinkedHashMap::new();
-                map.insert(Yaml::String("type".into()), Yaml::String("item".into()));
-                map.insert(Yaml::String("name".into()), Yaml::String(item.name.clone()));
-                map.insert(Yaml::String("done".into()), Yaml::Boolean(item.done));
-                if item.priority != 0 {
-                    map.insert(
-                        Yaml::String("priority".into()),
-                        Yaml::Integer(item.priority.into()),
-                    );
-                }
-                if let Some(date) = item.date {
-                    map.insert(
-                        Yaml::String("date".into()),
-                        Yaml::Integer(serialise_date(date).into()),
-                    );
-                }
-                if item.repeat_every != 0 {
-                    map.insert(
-                        Yaml::String("repeat_every".into()),
-                        Yaml::Integer(item.repeat_every),
-                    );
-                }
-                if item.repeat_next != 0 {
-                    map.insert(
-                        Yaml::String("repeat_next".into()),
-                        Yaml::Integer(item.repeat_next),
-                    );
-                }
-                Yaml::Hash(map)
-            }
-            Self::List(list) => {
-                let mut map: LinkedHashMap<Yaml, Yaml> = LinkedHashMap::new();
-                map.insert(Yaml::String("type".into()), Yaml::String("list".into()));
-                map.insert(Yaml::String("name".into()), Yaml::String(list.to_owned()));
-                Yaml::Hash(map)
-            }
-        }
-    }
-
-    fn from_yaml(y: &Yaml) -> Self {
-        let ty = y["type"].as_str().unwrap();
-        match ty {
-            "item" => Self::Item(ListItem {
-                name: y["name"].as_str().unwrap().to_owned(),
-                date: y["date"]
-                    .as_i64()
-                    .map(|date| deserialise_date(date.try_into().expect("Date is too large"))),
-                priority: i32::try_from(y["priority"].as_i64().unwrap_or(0))
-                    .expect("Priority is too large"),
-                done: y["done"].as_bool().unwrap_or(false),
-                repeat_every: y["repeat_every"].as_i64().unwrap_or(0),
-                repeat_next: y["repeat_next"].as_i64().unwrap_or(0),
-            }),
-
-            "list" => Self::List(y["name"].as_str().unwrap().to_owned()),
-
-            _ => panic!("Expected either 'item' or 'list', got '{}'", ty),
-        }
-    }
-}
-
 #[derive(Debug)]
 pub struct TodoList {
     name: String,
@@ -114,30 +42,6 @@ impl TodoList {
         Self {
             name,
             items: Vec::new(),
-        }
-    }
-
-    fn to_yaml(&self) -> Yaml {
-        let mut out: Vec<Yaml> = Vec::new();
-        for item in &self.items {
-            out.push(item.to_yaml());
-        }
-
-        let mut map: LinkedHashMap<Yaml, Yaml> = LinkedHashMap::new();
-        map.insert(Yaml::String("name".into()), Yaml::String(self.name.clone()));
-        map.insert(Yaml::String("entries".into()), Yaml::Array(out));
-        Yaml::Hash(map)
-    }
-
-    fn from_yaml(val: &Yaml) -> Self {
-        let name = val["name"].as_str().unwrap().to_owned();
-        let mut entries: Vec<ListEntry> = Vec::new();
-        for y in val["entries"].as_vec().unwrap() {
-            entries.push(ListEntry::from_yaml(y));
-        }
-        Self {
-            name,
-            items: entries,
         }
     }
 
@@ -216,7 +120,7 @@ impl TodoList {
                         .print_inner(all, indent, maxsize, predicate, print_date, acc);
                 }
                 ListEntry::Item(item) => {
-                    if print_date && item.date.is_some() || item.priority != 0 {
+                    if print_date && item.date.is_some() {
                         let tabs = " ".repeat(maxsize - indentstr.len() - item.name.len());
                         let duration =
                             item.date.unwrap() - chrono::Local::now().naive_local().date();
@@ -463,10 +367,7 @@ fn cmd_add(lists: &mut [TodoList], args: &[String]) -> CmdResult {
     list.items.push(ListEntry::Item(ListItem {
         name,
         date,
-        priority: 0,
         done: false,
-        repeat_every: 0,
-        repeat_next: 0,
     }));
     Ok((String::new(), true))
 }

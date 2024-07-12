@@ -13,14 +13,8 @@ fn parse_text_item(line: &str, done: bool, line_num: usize) -> Result<ListEntry,
         let date_str = &line[1..11]; // TODO this might cause problems
         (
             Some(
-                match chrono::NaiveDate::parse_from_str(date_str, "%d/%m/%Y") {
-                    Ok(date) => date,
-                    Err(_) => {
-                        return Err(ParseError(format!(
-                            "Invalid date literal (line {line_num})"
-                        )))
-                    }
-                },
+                chrono::NaiveDate::parse_from_str(date_str, "%d/%m/%Y")
+                    .map_err(|_| ParseError(format!("Invalid date literal (line {line_num})")))?,
             ),
             &line[11..],
         )
@@ -31,9 +25,6 @@ fn parse_text_item(line: &str, done: bool, line_num: usize) -> Result<ListEntry,
         name: rest_of_line.to_owned(),
         date,
         done,
-        priority: 0,
-        repeat_every: 0,
-        repeat_next: 0,
     }))
 }
 
@@ -78,14 +69,10 @@ pub fn parse_str(s: &str) -> Result<Vec<TodoList>, ParseError> {
                         "Expected one of '-', '+' or '=' at the start of a list item, but instead found '{c}' (line {line_num})"
                     )))
             }?;
-            // annoyingness to avoid using a match lol
-            // basically returns an error if last_mut returns None
             res.last_mut()
-                .ok_or_else(|| {
-                    ParseError(format!(
-                        "Expected list header before item (line {line_num})"
-                    ))
-                })?
+                .ok_or(ParseError(format!(
+                    "Expected list header before item (line {line_num})"
+                )))?
                 .items
                 .push(item);
         } else {
@@ -121,9 +108,3 @@ pub fn emit_str(ls: &[TodoList]) -> String {
         acc
     })
 }
-
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     fn test_parser() ->
-// }

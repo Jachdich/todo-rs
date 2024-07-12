@@ -17,8 +17,6 @@ name = "todo"
 path = "src/main.rs"
 
 [dependencies]
-yaml-rust = "*"
-linked-hash-map = "*"
 dirs = "*"
 chrono = "0.4.26"
 
