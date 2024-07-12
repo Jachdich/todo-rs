@@ -337,6 +337,8 @@ fn get_list_by_name<'a>(lists: &'a [TodoList], name: &str) -> Result<&'a TodoLis
         if i.name == name {
             return Ok(i);
         }
+    }
+    for i in lists {
         if i.name.starts_with(name) {
             if item.is_ok() {
                 return Err(format!(
@@ -635,18 +637,19 @@ fn main() {
         println!("{}", usage());
         return;
     }
-    
+
     let mut list_file = Path::new("todo.txt");
     let mut lists;
     let mut global_list_file;
     match load(list_file) {
         Ok(l) => lists = l,
         Err(_) => {
-            global_list_file =
-                dirs::config_dir().expect("Unable to locate config directory. What OS are you on?!");
+            global_list_file = dirs::config_dir()
+                .expect("Unable to locate config directory. What OS are you on?!");
             global_list_file.push("todo");
-            std::fs::create_dir_all(&global_list_file)
-                .expect("Unable to create the config directory. Do you have the right permissions?");
+            std::fs::create_dir_all(&global_list_file).expect(
+                "Unable to create the config directory. Do you have the right permissions?",
+            );
             global_list_file.push("todo.txt");
             list_file = global_list_file.as_path();
             lists = load(list_file).unwrap_or_default();
