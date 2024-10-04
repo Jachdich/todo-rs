@@ -10,6 +10,13 @@ use std::io::Read;
 use std::io::Write;
 use std::path::Path;
 
+const TOAD: &'static str = r#"       _     _
+      (')-=-(')
+    __(   "   )__
+   / _/'-----'\_ \
+___\\ \\     // //___
+>____)/_\---/_\(____<"#;
+
 #[derive(Debug)]
 pub struct ListItem {
     name: String,
@@ -237,6 +244,9 @@ fn usage() -> String {
 
 fn get_list_by_name<'a>(lists: &'a [TodoList], name: &str) -> Result<&'a TodoList, String> {
     let mut item: Result<&'a TodoList, String> = Err(format!("List '{name}' does not exist"));
+    if name == "toad" {
+        item = Err(TOAD.to_string());
+    }
     for i in lists {
         if i.name == name {
             return Ok(i);
