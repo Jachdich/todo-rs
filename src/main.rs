@@ -229,9 +229,9 @@ fn usage() -> String {
     "\tmva moveall <source> <dest>      Move every item from <source> into <dest>. Does not move sublist of source into itself\n" +
     "\trn  rename <list> <old> <new>    Rename an item in <list> from <old> to <new>\n" +
     "\trl  renamelist <old> <new>       Rename the list <old> to <new>\n" +
-    // println!("\tr   repeat <list> <item> <time>  Set an item to repeat (mark as un-done) every <time>");
     "\tar  autorm <list>                Remove all items in <list> that are marked as done\n" +
     "\tt   today <list> [--short]       List all tasks with a deadline of today.\n                                         If --short is passed, return only the number of tasks, do not list them.\n" +
+    "\ttm  tomorrow <list> [--short]    List all tasks with a deadline of tomorrow (24 < hours <= 48)\n" +
     "\tw   week <list> [--short]        List all tasks with a deadline of within the next 7 days\n" +
     "\tod  overdue <list> [--short]     List all non-completed tasks with a deadline in the past\n\n" +
     "When specifying lists and items, only the first few characters of their names are needed, as long a they\n" +
@@ -497,8 +497,9 @@ fn cmd_timeperiods(lists: &[TodoList], args: &[String], op: &str) -> CmdResult {
     use chrono::Duration;
     // find out the minimum and maximum allowed difference between the deadline date and today
     let (min_diff, max_diff, description) = match op {
-        "today" | "t" => (Duration::days(0), Duration::days(1), "today"),
-        "week" | "w" => (Duration::days(1), Duration::days(7), "this week"),
+        "today" | "t"     => (Duration::days(0), Duration::days(1), "today"),
+        "tomorrow" | "tm" => (Duration::days(1), Duration::days(2), "tomorrow"),
+        "week" | "w"      => (Duration::days(1), Duration::days(7), "this week"),
         "overdue" | "od" => (
             Duration::days(-365 * 1000), //1000 years ought to be enough
             Duration::days(0),
@@ -585,6 +586,7 @@ fn main() {
         "moveall" | "mvall"
         | "mva" | "ma"        if nargs >= 2 => cmd_moveall(&mut lists, &args[2], &args[3..].join(" ")),
         "today" | "t"
+        | "tomorrow" | "tm"
         | "week" | "w"
         | "overdue" | "od"    if nargs >= 1 => cmd_timeperiods(&lists, &args[2..], &args[1]),
         "doneall" | "da" | "undoneall" | "uda" if nargs >= 1 => cmd_doneall(
