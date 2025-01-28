@@ -270,6 +270,9 @@ fn get_mut_list_by_name<'a>(
     name: &str,
 ) -> Result<&'a mut TodoList, String> {
     let mut item: Result<&'a mut TodoList, String> = Err(format!("List '{name}' does not exist"));
+    if name == "toad" {
+        item = Err(TOAD.to_string());
+    }
     for i in lists {
         if i.name == name {
             return Ok(i);
