@@ -138,15 +138,19 @@ impl TodoList {
                         } else {
                             format!("in {} days", duration.num_days())
                         };
+                        let strike = "\x1b[9m";
+                        let reset = "\x1b[0m";
                         writeln!(
                             acc,
-                            "{}{}{}{}\t{} ({})",
+                            "{}{}{}{}\t{}{} ({}){}",
                             if item.done { "✓" } else { " " },
                             indentstr,
                             item.name,
                             tabs,
+                            if item.done { strike } else { "" },
                             item.date.unwrap().format("%d/%m/%Y"),
                             time_until,
+                            if item.done { reset } else { "" },
                             // item.priority
                         )
                         .unwrap();
